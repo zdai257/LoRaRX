@@ -38,7 +38,10 @@ CFG_REG = [b'\xC2\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
            b'\xC2\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00']
 RET_REG = [b'\xC1\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
            b'\xC1\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00']
-r_buff = ""
+
+r_buff = b""
+msg_buff = b""
+buff_len = 0
 delay_temp = 1
 
 if len(sys.argv) != 2 :
@@ -102,24 +105,24 @@ try :
                 if r_buff != "" :
                     now_rx = UtcNow()
                     print("receive a P2P message at "+now_rx+" :")
+                    msg_len = len(r_buff)
+                    print("Received Data Length = ", msg_len)
+                    msg = []
                     print(r_buff)
                     '''
-                    now_tx = r_buff[0:0+len(now_rx)]
-                    print(now_tx)
-                    msg = r_buff[1+len(now_rx):-2]
+                    for id in range(0, 240, 4):
+                        msg0 = r_buff[id:id+4]
+                        msg.append(msg0)
                     print(msg)
                     '''
-                    #print(r_buff[-3:-2])
-                    if r_buff[-3:-2] != b'\r':
-                        now_tx = r_buff[0:0+len(now_rx)]
-                        #print(now_tx)
-                        msg = r_buff[1+len(now_rx):]
-                        #print(msg)
-                        msg_buff = msg
+                    # Parse Msg with UtcNow() at Transmitter
+                    buff_len += msg_len
+                    print(buff_len)
+                    if buff_len < 241:
+                        msg_buff += r_buff
                         r_buff = ""
-                    else:
-                        msg = r_buff[:-3]
-                        msg_buff += msg
+                    elif buff_len == 241:
+                        msg_buff += r_buff[:-1]
                         print("Complete Msg = ", msg_buff)
                         #print(str(r_buff[-1]))
                         rssi = int(r_buff[-1]) - 256
@@ -128,10 +131,20 @@ try :
                         print("RSSI = "+str(rssi)+" dBm\r\n")
                         r_buff = ""
                         #read_rssi(ser)
+                        for id in range(0, 240, 4):
+                            msg0 = struct.unpack('f', msg_buff[id:id+4])
+                            msg_list.append(msg0[0])
+
                         with open("log.txt", "a+") as f:
-                            f.write("%s %s %s %d\n" % (now_tx.decode("utf-8"), now_rx, msg_buff.decode("utf-8"), rssi))
-                        msg_buff = ""
-                    
+                            f.write("%s %s %d\n" % (now_rx, str(msg_list), rssi))
+                        msg_buff = b""
+                        buff_len = 0
+                    else:
+                        r_buff = ""
+                        msg_buff = b""
+                        buff_len = 0
+                        print("ERROR: EXCESSIVE MSG LENGTH")
+                        break
             delay_temp += 1
             '''
             if delay_temp > 400000 :
