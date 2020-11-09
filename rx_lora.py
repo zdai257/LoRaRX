@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: UTF-8 -*-
 
 import RPi.GPIO as GPIO
@@ -6,6 +6,8 @@ import serial
 import time
 import sys
 import datetime
+import struct
+import string
 
 def UtcNow():
     now = datetime.datetime.utcnow()
@@ -43,6 +45,7 @@ r_buff = b""
 msg_buff = b""
 buff_len = 0
 delay_temp = 1
+msg_list = []
 
 if len(sys.argv) != 2 :
     print("there's too much or less arguments,please input again!!!")
@@ -130,21 +133,23 @@ try :
                         #rssi = int(rssi_hex, base=16) - 256
                         print("RSSI = "+str(rssi)+" dBm\r\n")
                         r_buff = ""
-                        #read_rssi(ser)
+                        print(len(msg_buff))
                         for id in range(0, 240, 4):
                             msg0 = struct.unpack('f', msg_buff[id:id+4])
                             msg_list.append(msg0[0])
-
+                            #print(msg_list)
                         with open("log.txt", "a+") as f:
-                            f.write("%s %s %d\n" % (now_rx, str(msg_list), rssi))
+                            f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list), rssi))
+                        msg_list = []
                         msg_buff = b""
                         buff_len = 0
                     else:
                         r_buff = ""
                         msg_buff = b""
                         buff_len = 0
+                        msg_list = []
                         print("ERROR: EXCESSIVE MSG LENGTH")
-                        break
+                        #break
             delay_temp += 1
             '''
             if delay_temp > 400000 :
