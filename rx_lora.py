@@ -46,6 +46,10 @@ msg_buff = b""
 buff_len = 0
 delay_temp = 1
 msg_list = []
+log_filename = UtcNow().replace(':', '_')
+log_filename = log_filename.replace('.', '_')
+log_filename = log_filename.replace(' ', '_')
+print(log_filename)
 
 if len(sys.argv) != 2 :
     print("there's too much or less arguments,please input again!!!")
@@ -138,8 +142,9 @@ try :
                             msg0 = struct.unpack('f', msg_buff[id:id+4])
                             msg_list.append(msg0[0])
                             #print(msg_list)
-                        with open("log.txt", "a+") as f:
+                        with open(log_filename, "a+") as f:
                             f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list), rssi))
+                            f.flush()
                         msg_list = []
                         msg_buff = b""
                         buff_len = 0
