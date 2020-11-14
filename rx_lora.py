@@ -41,6 +41,8 @@ CFG_REG = [b'\xC2\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
 RET_REG = [b'\xC1\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
            b'\xC1\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00']
 
+num_f = 60 # Number of packed floats data; Note if >243 Bytes it splits into TWO messages
+len_num_bytes = num_f*4 + 1
 r_buff = b""
 msg_buff = b""
 buff_len = 0
@@ -49,6 +51,7 @@ msg_list = []
 log_filename = UtcNow().replace(':', '_')
 log_filename = log_filename.replace('.', '_')
 log_filename = log_filename.replace(' ', '_')
+log_filename += '.txt'
 print(log_filename)
 
 if len(sys.argv) != 2 :
@@ -125,10 +128,10 @@ try :
                     # Parse Msg with UtcNow() at Transmitter
                     buff_len += msg_len
                     print(buff_len)
-                    if buff_len < 241:
+                    if buff_len < len_num_bytes : # 241
                         msg_buff += r_buff
                         r_buff = ""
-                    elif buff_len == 241:
+                    elif buff_len == len_num_bytes:
                         msg_buff += r_buff[:-1]
                         print("Complete Msg = ", msg_buff)
                         #print(str(r_buff[-1]))
@@ -138,7 +141,8 @@ try :
                         print("RSSI = "+str(rssi)+" dBm\r\n")
                         r_buff = ""
                         print(len(msg_buff))
-                        for id in range(0, 240, 4):
+                        # Note bytearray 0-240, 241-481 .. need to be segmented if there are TWO messages
+                        for id in range(0, 4*num_f, 4):
                             msg0 = struct.unpack('f', msg_buff[id:id+4])
                             msg_list.append(msg0[0])
                             #print(msg_list)
