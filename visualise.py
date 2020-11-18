@@ -3,6 +3,7 @@ import sys
 import datetime
 import numpy as np
 from eulerangles import *
+from utility import *
 from plot_util import *
 
 
@@ -34,6 +35,10 @@ def parse_msg(ether_msg, len_pose=12):
         abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2], abs_pred_transform[2, 3]])
         pos.pred_transform_t_1 = abs_pred_transform
 
+    print(pos.out_pred_array)
     out_pred_array_np = np.array(pos.out_pred_array)
     out_gt_array_np = np.zeros(out_pred_array_np.shape)
     plot2d(out_pred_array_np, out_gt_array_np, join('traj.png'))
+
+
+

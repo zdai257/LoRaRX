@@ -146,8 +146,9 @@ try :
                         for id in range(0, 4*num_f, 4):
                             msg0 = struct.unpack('f', msg_buff[id:id+4])
                             msg_list.append(msg0[0])
-                            #print(msg_list)
-                            parse_msg(msg_list)
+                        #print(msg_list)
+                        # Visulisation
+                        parse_msg(msg_list)
                         with open(log_filename, "a+") as f:
                             f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list), rssi))
                             f.flush()
