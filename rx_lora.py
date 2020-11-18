@@ -8,6 +8,7 @@ import sys
 import datetime
 import struct
 import string
+from visualise import *
 
 def UtcNow():
     now = datetime.datetime.utcnow()
@@ -26,7 +27,7 @@ def read_rssi(ser):
             rssi = int(rssi_hex, base=16) - 256
             print(str(rssi) + " dBm\r\n")
             return rssi
-    
+
 M0 = 22
 M1 = 27
 MODE = ["BRC","P2P"]
@@ -62,7 +63,7 @@ elif (str(sys.argv[1]) == MODE[0]) or (str(sys.argv[1]) == MODE[1]) :
 else :
     print("parameters is error")
     sys.exit(0)
-    
+
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 GPIO.setup(M0,GPIO.OUT)
@@ -91,7 +92,7 @@ try :
                 if r_buff != "" :
                     print("monitor message:")
                     print(r_buff)
-                    
+
                     r_buff = ""
             delay_temp += 1
             if delay_temp > 800000:#400000 :
@@ -146,6 +147,7 @@ try :
                             msg0 = struct.unpack('f', msg_buff[id:id+4])
                             msg_list.append(msg0[0])
                             #print(msg_list)
+                            parse_msg(msg_list)
                         with open(log_filename, "a+") as f:
                             f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list), rssi))
                             f.flush()
@@ -164,7 +166,7 @@ try :
             if delay_temp > 400000 :
                                 msg = "Pose [x y z alpha beta theta] at "+UtcNow()+"\r\n"
                                 print(msg)
-                                
+
                                 ser.write(msg.encode())
                                 delay_temp = 0
             '''
