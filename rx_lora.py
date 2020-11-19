@@ -8,6 +8,7 @@ import sys
 import datetime
 import struct
 import string
+import math
 from visualise import *
 
 def UtcNow():
@@ -42,8 +43,18 @@ CFG_REG = [b'\xC2\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
 RET_REG = [b'\xC1\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
            b'\xC1\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00']
 
-num_f = 60 # Number of packed floats data; Note if >243 Bytes it splits into TWO messages
-len_num_bytes = num_f*4 + 1
+if len(sys.argv) != 3 :
+    print("there's too much or less arguments,please input again!!!")
+    sys.exit(0)
+elif (str(sys.argv[1]) == MODE[0]) or (str(sys.argv[1]) == MODE[1]) :
+    time.sleep(0.001)
+else :
+    print("parameters is error")
+    sys.exit(0)
+
+# Number of packed floats data; Note if >243 Bytes it splits into TWO messages
+num_f = 12*int(sys.argv[2])
+len_num_bytes = num_f*4 + math.ceil(num_f/61)
 r_buff = b""
 msg_buff = b""
 buff_len = 0
@@ -55,14 +66,7 @@ log_filename = log_filename.replace(' ', '_')
 log_filename += '.txt'
 print(log_filename)
 
-if len(sys.argv) != 2 :
-    print("there's too much or less arguments,please input again!!!")
-    sys.exit(0)
-elif (str(sys.argv[1]) == MODE[0]) or (str(sys.argv[1]) == MODE[1]) :
-    time.sleep(0.001)
-else :
-    print("parameters is error")
-    sys.exit(0)
+
 
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
@@ -114,6 +118,7 @@ try :
                     time.sleep(0.01)
                     r_buff = ""
                 if r_buff != "" :
+                    
                     now_rx = UtcNow()
                     print("receive a P2P message at "+now_rx+" :")
                     msg_len = len(r_buff)
@@ -143,12 +148,22 @@ try :
                         r_buff = ""
                         print(len(msg_buff))
                         # Note bytearray 0-240, 241-481 .. need to be segmented if there are TWO messages
-                        for id in range(0, 4*num_f, 4):
+                        if num_f < 61:
+                          for id in range(0, 4*num_f, 4):
                             msg0 = struct.unpack('f', msg_buff[id:id+4])
                             msg_list.append(msg0[0])
-                        #print(msg_list)
+                        else:
+                          for id in range(0, 4*60, 4):
+                            msg0 = struct.unpack('f', msg_buff[id:id+4])
+                            msg_list.append(msg0[0])
+                          for id in range(4*60+1, 4*num_f+1, 4):
+                            msg0 = struct.unpack('f', msg_buff[id:id+4])
+                            msg_list.append(msg0[0])
+                        
                         # Visulisation
                         parse_msg(msg_list)
+                        
+                        # Logging
                         with open(log_filename, "a+") as f:
                             f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list), rssi))
                             f.flush()
@@ -160,7 +175,7 @@ try :
                         msg_buff = b""
                         buff_len = 0
                         msg_list = []
-                        print("ERROR: EXCESSIVE MSG LENGTH")
+                        print("\nERROR: EXCESSIVE MSG LENGTH\n")
                         #break
             delay_temp += 1
             '''
