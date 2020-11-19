@@ -133,7 +133,7 @@ try :
                     '''
                     # Parse Msg with UtcNow() at Transmitter
                     buff_len += msg_len
-                    print(buff_len)
+                    print("%d bytes in buffer" % buff_len)
                     if buff_len < len_num_bytes : # 241
                         msg_buff += r_buff
                         r_buff = ""
@@ -146,7 +146,7 @@ try :
                         #rssi = int(rssi_hex, base=16) - 256
                         print("RSSI = "+str(rssi)+" dBm\r\n")
                         r_buff = ""
-                        print(len(msg_buff))
+                        print("Total Length of Msg = %d\n" % len(msg_buff))
                         # Note bytearray 0-240, 241-481 .. need to be segmented if there are TWO messages
                         if num_f < 61:
                           for id in range(0, 4*num_f, 4):
@@ -161,7 +161,7 @@ try :
                             msg_list.append(msg0[0])
                         
                         # Visulisation
-                        parse_msg(msg_list)
+                        parse_msg(msg_list, rssi)
                         
                         # Logging
                         with open(log_filename, "a+") as f:

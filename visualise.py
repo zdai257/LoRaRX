@@ -25,29 +25,52 @@ class Pos:
         self.sigma_list = []
         self.angle = 0
         
+        self.rssi_list = []
+        
         self.vec = np.array([[0], [1], [0], [0]], dtype=float)
         self.odom_quat = self.vec
+        
+        self.ax1 = None
+        self.ax2 = None
+        self.handle_scat = None
+        self.handle_arrw = None
+        
+        
+    def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0):
+        self.ax1.view_init(elev=30., azim=-75)
+        self.ax1.set_xlabel('X Axis (m)')
+        self.ax1.set_ylabel('Y Axis (m)')
+        self.ax1.set_zlabel('Z Axis (m)')
+        self.ax1.set_xlim(-0, 1)
+        self.ax1.set_ylim(-0, 1)
+        self.ax1.set_zlim(-0, 1)
+        self.handle_scat = self.ax1.scatter(x, y, z, color='b', marker='o', alpha=.9)
+        self.handle_arrw = self.ax1.quiver(x, y, z, u, v, w, color='r', length=0.25, alpha=.9)
+        
+    def reset_view(self):
+        self.rssi_list = []
+        self.ax1.clear()
+
+
 
 pos = Pos()
 
-fig1 = plt.figure()
-ax1 = Axes3D(fig1) #fig1.add_subplot(1, 1, 1)
+fig1 = plt.figure(figsize=(8, 9))
+pos.ax1 = fig1.add_subplot(2, 1, 1, projection='3d') #fig1.gca(projection='3d') #Axes3D(fig1)
+pos.ax2 = fig1.add_subplot(2, 1, 2)
 plt.ion()
 
-ax1.view_init(elev=30., azim=15)
-ax1.set_xlabel('X Axis (m)')
-ax1.set_ylabel('Y Axis (m)')
-ax1.set_zlabel('Z Axis (m)')
-ax1.set_xlim(-0, 1)
-ax1.set_ylim(-0, 1)
-ax1.set_zlim(-0, 1)
+pos.set_view()
 
 fig1.show()
 fig1.canvas.draw()
 
 
-def parse_msg(ether_msg, len_pose=12):
+def parse_msg(ether_msg, rssi, len_pose=12):
     start_t = time.time()
+    
+    pos.rssi_list.append(rssi)
+    
     for idx in range(0, len(ether_msg), len_pose):
         final_pose = ether_msg[idx:idx+6]
         sigma_pose = ether_msg[idx+6:idx+12]
@@ -85,46 +108,31 @@ def parse_msg(ether_msg, len_pose=12):
     pos.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
     print(pos.odom_quat)
     
-    x = math.cos(euler_rad[0])*math.cos(euler_rad[1])
-    y = math.sin(euler_rad[0])*math.cos(euler_rad[1])
-    z = math.sin(euler_rad[1])
+    U = math.cos(euler_rad[0])*math.cos(euler_rad[1])
+    V = math.sin(euler_rad[0])*math.cos(euler_rad[1])
+    W = math.sin(euler_rad[1])
     
-    X, Y, Z = pos.odom_quat[1], pos.odom_quat[2], pos.odom_quat[3]
+    u, v, w = pos.odom_quat[1], pos.odom_quat[2], pos.odom_quat[3]
 
     print("Elapsed time 2 = ", time.time() - start_t)
     start_t = time.time()
-     
-    ax1.quiver([pos.final_list[-1][0]], [pos.final_list[-1][1]], [pos.final_list[-1][2]],
-            X, Y, Z, color='r', length=0.3, alpha=.7)
-    fig1.canvas.draw()
     
-    '''
-    ax1.clear()
-    alpha_num = len(pos.final_list)
-    if alpha_num > 30:
-        #rint(alpha_num)
-        alpha_num = 30
-    alpha_deg = np.linspace(0.05, 1, alpha_num)
-    #print(alpha_deg)
-
-    for i in range(1, alpha_num):
-        if i!=1:
-            ax1.scatter([pos.final_list[-i][0]], [pos.final_list[-i][1]], [pos.final_list[-i][2]], color='b', marker='o', alpha=alpha_deg[-i])
-        else:
-            ax1.quiver([pos.final_list[-i][0]], [pos.final_list[-i][1]], [pos.final_list[-i][2]],
-            X, Y, Z, color='r', length=0.3, alpha=alpha_deg[-i])
-
-    ax1.view_init(elev=30., azim=pos.angle)
-    pos.angle += 1.
-    ax1.set_xlabel('X Axis (m)')
-    ax1.set_ylabel('Y Axis (m)')
-    ax1.set_zlabel('Z Axis (m)')
-
-    ax1.set_xlim(-0, 1)
-    ax1.set_ylim(-0, 1)
-    ax1.set_zlim(-0, 1)
-
+    pos.handle_scat.set_alpha(.2)
+    pos.handle_arrw.remove()
+    pos.handle_scat = pos.ax1.scatter([pos.final_list[-1][0]], [pos.final_list[-1][1]], [pos.final_list[-1][2]], color='b', marker='o', alpha=.9)
+    pos.handle_arrw = pos.ax1.quiver([pos.final_list[-1][0]], [pos.final_list[-1][1]], [pos.final_list[-1][2]],
+            u, v, w, color='r', length=0.25, alpha=.9)
+    
+    pos.ax2.clear()
+    pos.ax2.set_ylabel("RSSI (dBm)")
+    pos.ax2.plot(pos.rssi_list, 'g')
+    
     fig1.canvas.draw()
-    '''
-    print("Elapsed time 3 = ", time.time() - start_t)
+    fig1.canvas.flush_events()
+    
+    stop_t = time.time() - start_t
+    print("Elapsed time 3 = ", stop_t)
+    if stop_t > 1.0:
+        pos.reset_view()
+        pos.set_view([pos.final_list[-1][0]], [pos.final_list[-1][1]], [pos.final_list[-1][2]], u, v, w)
     
