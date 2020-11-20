@@ -14,7 +14,7 @@ import tf
 
 
 class Pos:
-    def __init__(self):
+    def __init__(self, blit=False):
         self.pred_transform_t_1 = np.array(
         [[1, 0, 0, 0],
         [0, 1, 0, 0],
@@ -30,10 +30,13 @@ class Pos:
         self.vec = np.array([[0], [1], [0], [0]], dtype=float)
         self.odom_quat = self.vec
         
+        self.blit = blit
         self.ax1 = None
         self.ax2 = None
         self.handle_scat = None
         self.handle_arrw = None
+        self.ax1background = None
+        self.ax2background = None
         
         
     def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0):
@@ -41,9 +44,11 @@ class Pos:
         self.ax1.set_xlabel('X Axis (m)')
         self.ax1.set_ylabel('Y Axis (m)')
         self.ax1.set_zlabel('Z Axis (m)')
+        '''
         self.ax1.set_xlim(-0, 1)
         self.ax1.set_ylim(-0, 1)
         self.ax1.set_zlim(-0, 1)
+        '''
         self.handle_scat = self.ax1.scatter(x, y, z, color='b', marker='o', alpha=.9)
         self.handle_arrw = self.ax1.quiver(x, y, z, u, v, w, color='r', length=0.25, alpha=.9)
         
@@ -53,7 +58,7 @@ class Pos:
 
 
 
-pos = Pos()
+pos = Pos(True)
 
 fig1 = plt.figure(figsize=(8, 9))
 pos.ax1 = fig1.add_subplot(2, 1, 1, projection='3d') #fig1.gca(projection='3d') #Axes3D(fig1)
@@ -62,8 +67,11 @@ plt.ion()
 
 pos.set_view()
 
-fig1.show()
 fig1.canvas.draw()
+if pos.blit:
+    pos.ax1background = fig1.canvas.copy_from_bbox(pos.ax1.bbox)
+    pos.ax2background = fig1.canvas.copy_from_bbox(pos.ax2.bbox)
+plt.show(block=False)
 
 
 def parse_msg(ether_msg, rssi, len_pose=12):
@@ -125,9 +133,25 @@ def parse_msg(ether_msg, rssi, len_pose=12):
     
     pos.ax2.clear()
     pos.ax2.set_ylabel("RSSI (dBm)")
-    pos.ax2.plot(pos.rssi_list, 'g')
+    pos.ax2.plot(pos.rssi_list, 'coral')
     
-    fig1.canvas.draw()
+    
+    if pos.blit:
+        # restore background
+        fig1.canvas.restore_region(pos.ax1background)
+        fig1.canvas.restore_region(pos.ax2background)
+
+        # redraw just the points
+        pos.ax1.draw_artist(pos.handle_scat)
+        pos.ax2.draw_artist(pos.handle_arrw)
+
+        # fill in the axes rectangle
+        fig1.canvas.blit(pos.ax1.bbox)
+        fig1.canvas.blit(pos.ax2.bbox)
+
+    else:
+        fig1.canvas.draw()
+        
     fig1.canvas.flush_events()
     
     stop_t = time.time() - start_t
