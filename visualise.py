@@ -41,6 +41,7 @@ class Pos:
         
     def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0):
         self.ax1.view_init(elev=30., azim=-75)
+        self.ax1.set_title("Real-Time Pose", fontweight='bold')
         self.ax1.set_xlabel('X Axis (m)')
         self.ax1.set_ylabel('Y Axis (m)')
         self.ax1.set_zlabel('Z Axis (m)')
@@ -132,6 +133,7 @@ def parse_msg(ether_msg, rssi, len_pose=12):
             u, v, w, color='r', length=0.25, alpha=.9)
     
     pos.ax2.clear()
+    pos.ax2.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
     pos.ax2.set_ylabel("RSSI (dBm)")
     pos.ax2.plot(pos.rssi_list, 'coral')
     
@@ -143,7 +145,7 @@ def parse_msg(ether_msg, rssi, len_pose=12):
 
         # redraw just the points
         pos.ax1.draw_artist(pos.handle_scat)
-        pos.ax2.draw_artist(pos.handle_arrw)
+        pos.ax1.draw_artist(pos.handle_arrw)
 
         # fill in the axes rectangle
         fig1.canvas.blit(pos.ax1.bbox)
@@ -157,6 +159,7 @@ def parse_msg(ether_msg, rssi, len_pose=12):
     stop_t = time.time() - start_t
     print("Elapsed time 3 = ", stop_t)
     if stop_t > 1.0:
+        fig1.savefig("live_rx.png")
         pos.reset_view()
         pos.set_view([pos.final_list[-1][0]], [pos.final_list[-1][1]], [pos.final_list[-1][2]], u, v, w)
     
