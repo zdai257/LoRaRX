@@ -9,11 +9,13 @@ import datetime
 import struct
 import string
 import math
-from visualise import *
+#from visualise import *
 
 def UtcNow():
     now = datetime.datetime.utcnow()
     return str(now)
+
+UTC_LEN = len(UtcNow())
 
 RSSI_REG = [b'\xC0\xC1\xC2\xC3\x00\x02']
 
@@ -38,10 +40,10 @@ CFG_REG = [b'\xC2\x00\x09\xFF\xFF\x00\x62\x00\x17\x03\x00\x00',
 RET_REG = [b'\xC1\x00\x09\xFF\xFF\x00\x62\x00\x17\x03\x00\x00',
            b'\xC1\x00\x09\x00\x00\x00\x62\x00\x17\x03\x00\x00']
 '''
-CFG_REG = [b'\xC2\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
-           b'\xC2\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00']
-RET_REG = [b'\xC1\x00\x09\xFF\xFF\x44\x67\x20\x17\x83\x00\x00',
-           b'\xC1\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00']
+CFG_REG = [b'\xC2\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00',
+           b'\xC2\x00\x09\x00\x00\x44\x61\x20\x17\x83\x00\x00'] # BRC mode (actually P2P) defined to test Air Speed
+RET_REG = [b'\xC1\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00',
+           b'\xC1\x00\x09\x00\x00\x44\x61\x20\x17\x83\x00\x00']
 
 if len(sys.argv) != 3 :
     print("there's too much or less arguments,please input again!!!")
@@ -97,13 +99,22 @@ try :
                     print("monitor message:")
                     print(r_buff)
 
+                    now_tx = r_buff[:UTC_LEN]
+                    rssi = int(r_buff[-1]) - 256
+                    print(now_tx)
+                    if now_tx[:3] == b'202':
+                        with open(log_filename, "a+") as f:
+                            f.write("%s; %s; %d\n" % (now_tx.decode('utf-8'), UtcNow(), rssi))
+                            f.flush()
                     r_buff = ""
             delay_temp += 1
-            if delay_temp > 800000:#400000 :
+            '''
+            if delay_temp > 800000: #400000 :
                                 msg = "Pose [x y z alpha beta theta] at "+UtcNow()+"\r\n"
                                 print(msg)
                                 ser.write(msg.encode())
                                 delay_temp = 0
+            '''
     elif str(sys.argv[1]) == MODE [1]:
         if ser.isOpen() :
             print("It's setting P2P mode")
@@ -161,7 +172,7 @@ try :
                             msg_list.append(msg0[0])
                         
                         # Visulisation
-                        parse_msg(msg_list, rssi)
+                        #parse_msg(msg_list, rssi)
                         
                         # Logging
                         with open(log_filename, "a+") as f:
