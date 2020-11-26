@@ -75,7 +75,7 @@ if pos.blit:
 plt.show(block=False)
 
 
-def parse_msg(ether_msg, rssi, len_pose=12):
+def parse_msg(ether_msg, rssi, len_pose=12, visual=False):
     start_t = time.time()
     
     pos.rssi_list.append(rssi)
@@ -117,14 +117,20 @@ def parse_msg(ether_msg, rssi, len_pose=12):
     pos.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
     print(pos.odom_quat)
     
+    # Unit Vector from Eular Angle
     U = math.cos(euler_rad[0])*math.cos(euler_rad[1])
     V = math.sin(euler_rad[0])*math.cos(euler_rad[1])
     W = math.sin(euler_rad[1])
     
-    u, v, w = pos.odom_quat[1], pos.odom_quat[2], pos.odom_quat[3]
-
     print("Elapsed time 2 = ", time.time() - start_t)
+    if visual:
+        plot_pos()
+    
+    
+def plot_pos():
     start_t = time.time()
+    
+    u, v, w = pos.odom_quat[1], pos.odom_quat[2], pos.odom_quat[3]
     
     pos.handle_scat.set_alpha(.2)
     pos.handle_arrw.remove()

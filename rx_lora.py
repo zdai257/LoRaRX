@@ -9,7 +9,7 @@ import datetime
 import struct
 import string
 import math
-#from visualise import *
+from visualise import *
 
 def UtcNow():
     now = datetime.datetime.utcnow()
@@ -40,10 +40,10 @@ CFG_REG = [b'\xC2\x00\x09\xFF\xFF\x00\x62\x00\x17\x03\x00\x00',
 RET_REG = [b'\xC1\x00\x09\xFF\xFF\x00\x62\x00\x17\x03\x00\x00',
            b'\xC1\x00\x09\x00\x00\x00\x62\x00\x17\x03\x00\x00']
 '''
-CFG_REG = [b'\xC2\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00',
-           b'\xC2\x00\x09\x00\x00\x44\x61\x20\x17\x83\x00\x00'] # BRC mode (actually P2P) defined to test Air Speed
-RET_REG = [b'\xC1\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00',
-           b'\xC1\x00\x09\x00\x00\x44\x61\x20\x17\x83\x00\x00']
+CFG_REG = [b'\xC2\x00\x09\x00\x00\x44\x63\x20\x17\x83\x00\x00',
+           b'\xC2\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00'] # BRC mode (actually P2P) defined to test Air Speed
+RET_REG = [b'\xC1\x00\x09\x00\x00\x44\x63\x20\x17\x83\x00\x00',
+           b'\xC1\x00\x09\x00\x00\x44\x67\x20\x17\x83\x00\x00']
 
 if len(sys.argv) != 3 :
     print("there's too much or less arguments,please input again!!!")
@@ -172,7 +172,7 @@ try :
                             msg_list.append(msg0[0])
                         
                         # Visulisation
-                        #parse_msg(msg_list, rssi)
+                        parse_msg(msg_list, rssi, visual=True)
                         
                         # Logging
                         with open(log_filename, "a+") as f:
