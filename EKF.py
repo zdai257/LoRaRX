@@ -11,10 +11,12 @@ from utility import *
 from plot_util import *
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
+import matplotlib
+#matplotlib.use('agg')
 
 
 # LoRa RX1 Coordinates
-R1 = np.array([20., 20., 0])
+R1 = np.array([200., 200., 0])
 
 
 def HJacobian_at(x):
@@ -67,9 +69,10 @@ class PoseVel(object):
         """ Returns Observation/Measurement. Call once for each
         new measurement at dt time from last call.
         """
+        
         # add some process noise to the system
-        self.vel = self.vel + 1. * (randn(3, 1) - .5)
-        self.rot = self.rot + .01 * randn(3, 1)
+        self.vel = self.vel + .3 * (randn(3, 1) + 1.)
+        self.rot = self.rot + 10. * (randn(3, 1) - 25.5)
         self.pos = self.pos + self.vel * self.dt
 
         # Constrain Path to 2D
@@ -77,17 +80,18 @@ class PoseVel(object):
         self.rot[0, 0], self.rot[1, 0] = 0., 0.
         self.pos[2, 0] = 0.
 
-        # Add measurement noise of 5%
-        self.pos += self.pos * 0.05 * randn(3, 1)
+        # Add measurement noise of 15%
+        z_pos = self.pos * (1 + 0.15 * randn(3, 1))
+        z_rot = self.rot * (1 + 0.15 * randn(3, 1))
 
-        # Simulate a decreasing RSSI
+        # Simulate a decreasing/increasing RSSI
         #rssi = 22 - (28.57*math.log10(np.linalg.norm(self.pos - R1)) + 27.06)
-        rssi = -.9*self.t_idx - 10*np.random.rand()
+        rssi = -100 + .8*self.t_idx - 10*np.random.rand()
         self.t_idx += 1
         #print("Measured RSSI: ", rssi)
 
         # Generate Observation
-        z0 = array([[self.pos[0, 0]], [self.pos[1, 0]], [self.pos[2, 0]], [self.rot[0, 0]], [self.rot[1, 0]], [self.rot[2, 0]], [rssi]])
+        z0 = array([[z_pos[0, 0]], [z_pos[1, 0]], [z_pos[2, 0]], [z_rot[0, 0]], [z_rot[1, 0]], [z_rot[2, 0]], [rssi]])
         #print("Generate Measurement shape: ", z0.shape)
         return z0
 
@@ -109,17 +113,29 @@ class EKF_Fusion():
         self.vec = np.array([[0], [1], [0], [0]], dtype=float)
         self.odom_quat = self.vec
         
+        # Visualisation init
         self.blit = blit
-        self.ax1 = None
-        self.ax2 = None
         self.handle_scat = None
         self.handle_arrw = None
         self.ax1background = None
         self.ax2background = None
         
+        self.fig2 = plt.figure(figsize=(8, 9))
+        self.ax21 = self.fig2.add_subplot(2, 1, 1, projection='3d') #fig1.gca(projection='3d') #Axes3D(fig1)
+        self.ax22 = self.fig2.add_subplot(2, 1, 2)
+        plt.ion()
+        self.set_view()
+
+        self.fig2.canvas.draw()
+        if self.blit:
+            self.ax1background = self.fig2.canvas.copy_from_bbox(self.ax21.bbox)
+            self.ax2background = self.fig2.canvas.copy_from_bbox(self.ax22.bbox)
+        plt.show(block=False)
+        
         # Creating EKF
         self.dt = dt
         self.my_kf = ExtendedKalmanFilter(dim_x=dim_x, dim_z=dim_z)
+        # Create synthetic Pose and Velocity
         self.pv = PoseVel(dt=self.dt, pos=np.zeros(shape=(3, 1)), rot=np.zeros(shape=(3, 1)), vel=np.zeros(shape=(3, 1)))
 
         # make an imperfect starting guess
@@ -166,10 +182,10 @@ class EKF_Fusion():
 
 
     def rt_run(self, gap):
-        start_t = time.time()
+        
         
         for g in range(gap, 0, -1):
-            
+            start_t = time.time()
             # Get Measurement
             final_pose = self.final_list[-g]
             
@@ -192,7 +208,7 @@ class EKF_Fusion():
             self.my_kf.predict()
             print("X+:\n", self.my_kf.x)
         
-        print("EKF process time = %.6f s" % (time.time() - start_t))
+            print("EKF per round takes %.6f s" % (time.time() - start_t))
         
         
     def new_measure(self, *args):
@@ -248,6 +264,9 @@ class EKF_Fusion():
         self.rt_run(gap)
         print("Elapsed time of EKF = ", time.time() - start_t)
         
+        # Trigger EKF
+        self.rt_show()
+        
         
         
     def sim_run(self):
@@ -295,7 +314,67 @@ class EKF_Fusion():
         self.ax1.set_xlabel("X (m)")
         self.ax1.set_ylabel("Y (m)")
         self.ax1.legend(loc='best')
+        fig1.savefig("sim_example.png")
         
+        
+    def rt_show(self):
+        start_t = time.time()
+    
+        u, v, w = self.odom_quat[1], self.odom_quat[2], self.odom_quat[3]
+    
+        self.handle_scat.set_alpha(.2)
+        self.handle_arrw.remove()
+        self.handle_scat = self.ax21.scatter([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], color='b', marker='o', alpha=.9)
+        self.handle_arrw = self.ax21.quiver([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]],
+            u, v, w, color='r', length=0.25, alpha=.9)
+        
+        self.ax22.clear()
+        self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
+        self.ax22.set_ylabel("RSSI (dBm)")
+        self.ax22.plot(self.rssi_list, 'coral')
+        
+        if self.blit:
+            # restore background
+            self.fig2.canvas.restore_region(self.ax1background)
+            self.fig2.canvas.restore_region(self.ax2background)
+            
+            # redraw just the points
+            self.ax21.draw_artist(self.handle_scat)
+            self.ax21.draw_artist(self.handle_arrw)
+
+            # fill in the axes rectangle
+            self.fig2.canvas.blit(self.ax21.bbox)
+            self.fig2.canvas.blit(self.ax22.bbox)
+            
+        else:
+            self.fig2.canvas.draw()
+        
+        self.fig2.canvas.flush_events()
+    
+        stop_t = time.time() - start_t
+        print("Elapsed time of VISUALISATION = ", stop_t)
+        if stop_t > 0.8:
+            self.fig2.savefig("live_rx.png")
+            self.reset_view()
+            self.set_view([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], u, v, w)
+        
+    def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0):
+        self.ax21.view_init(elev=30., azim=-75)
+        self.ax21.set_title("Real-Time Pose", fontweight='bold')
+        self.ax21.set_xlabel('X Axis (m)')
+        self.ax21.set_ylabel('Y Axis (m)')
+        self.ax21.set_zlabel('Z Axis (m)')
+        '''
+        self.ax21.set_xlim(-0, 1)
+        self.ax21.set_ylim(-0, 1)
+        self.ax21.set_zlim(-0, 1)
+        '''
+        self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9)
+        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='r', length=0.25, alpha=.9)
+        
+    def reset_view(self):
+        self.rssi_list = []
+        self.ax21.clear()
 
 
 if __name__=="__main__":
