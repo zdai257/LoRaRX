@@ -9,14 +9,17 @@ import datetime
 import struct
 import string
 import math
-from visualise import *
+#from visualise import *
+from EKF import EKF_Fusion
+
+
+ekf = EKF_Fusion(dt=0.1, blit=False)
 
 def UtcNow():
     now = datetime.datetime.utcnow()
     return str(now)
 
 UTC_LEN = len(UtcNow())
-
 RSSI_REG = [b'\xC0\xC1\xC2\xC3\x00\x02']
 
 def read_rssi(ser):
@@ -171,8 +174,12 @@ try :
                             msg0 = struct.unpack('f', msg_buff[id:id+4])
                             msg_list.append(msg0[0])
                         
+                        msg_list.append(rssi)
+                        
                         # Visulisation
-                        parse_msg(msg_list, rssi, visual=True)
+                        #parse_msg(msg_list, rssi, visual=True)
+                        # EKF
+                        ekf.new_measure(*msg_list)
                         
                         # Logging
                         with open(log_filename, "a+") as f:

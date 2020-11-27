@@ -51,50 +51,6 @@ def hx(x):
     return h
 
 
-class Pos(object):
-    def __init__(self, blit=False):
-        self.pred_transform_t_1 = np.array(
-        [[1, 0, 0, 0],
-        [0, 1, 0, 0],
-        [0, 0, 1, 0],
-        [0, 0, 0, 1]])
-        self.out_pred_array = []
-        self.final_list = []
-        self.sigma_list = []
-        self.angle = 0
-        
-        self.rssi_list = []
-        
-        self.vec = np.array([[0], [1], [0], [0]], dtype=float)
-        self.odom_quat = self.vec
-        
-        self.blit = blit
-        self.ax1 = None
-        self.ax2 = None
-        self.handle_scat = None
-        self.handle_arrw = None
-        self.ax1background = None
-        self.ax2background = None
-        
-        
-    def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0):
-        self.ax1.view_init(elev=30., azim=-75)
-        self.ax1.set_title("Real-Time Pose", fontweight='bold')
-        self.ax1.set_xlabel('X Axis (m)')
-        self.ax1.set_ylabel('Y Axis (m)')
-        self.ax1.set_zlabel('Z Axis (m)')
-        '''
-        self.ax1.set_xlim(-0, 1)
-        self.ax1.set_ylim(-0, 1)
-        self.ax1.set_zlim(-0, 1)
-        '''
-        self.handle_scat = self.ax1.scatter(x, y, z, color='b', marker='o', alpha=.9)
-        self.handle_arrw = self.ax1.quiver(x, y, z, u, v, w, color='r', length=0.25, alpha=.9)
-        
-    def reset_view(self):
-        self.rssi_list = []
-        self.ax1.clear()
-
 
 class PoseVel(object):
     """ Simulates the Path in 2D.
@@ -137,10 +93,30 @@ class PoseVel(object):
 
 
 
-class EKF_Fusion(object):
-    def __init__(self, dt=0.1, dim_x=9, dim_z=7):
+class EKF_Fusion():
+    def __init__(self, dt=0.1, dim_x=9, dim_z=7, blit=False):
         # Current Pose handler
-        self.pos = Pos()
+        self.pred_transform_t_1 = np.array(
+        [[1., 0, 0, 0],
+        [0, 1., 0, 0],
+        [0, 0, 1., 0],
+        [0, 0, 0, 1.]])
+        self.out_pred_array = []
+        self.final_list = []
+        self.sigma_list = []
+        self.angle = 0
+        self.rssi_list = []
+        self.vec = np.array([[0], [1], [0], [0]], dtype=float)
+        self.odom_quat = self.vec
+        
+        self.blit = blit
+        self.ax1 = None
+        self.ax2 = None
+        self.handle_scat = None
+        self.handle_arrw = None
+        self.ax1background = None
+        self.ax2background = None
+        
         # Creating EKF
         self.dt = dt
         self.my_kf = ExtendedKalmanFilter(dim_x=dim_x, dim_z=dim_z)
@@ -189,75 +165,89 @@ class EKF_Fusion(object):
         self.time = []
 
 
-    def rt_run(self, dt=0.1):
+    def rt_run(self, gap):
         start_t = time.time()
         
-        self.dt = dt
-        # Get Measurement
-        z = self.pos.final_list[-1].extend(self.pos.rssi_list[-1])
-        z = np.asarray(z).reshape(-1, 1)
-        
-        # Refresh Measurement noise R
-        for j in range(0, 6):
-            self.my_kf.R[j, j] = self.pose.sigma_list[-1][j]
-        
-        # UPDATE
-        self.my_kf.update(z, HJacobian_at, hx)
-        
-        # Log Posterior State x
-        self.xs.append(self.my_kf.x)
-        
-        # PREDICTION
-        self.my_kf.predict()
+        for g in range(gap, 0, -1):
+            
+            # Get Measurement
+            final_pose = self.final_list[-g]
+            
+            # Populate ONE Rssi for a 'gap' of Poses
+            final_pose.append(float(self.rssi_list[-1]))
+            
+            z = np.asarray(final_pose, dtype=float).reshape(-1, 1)
+            print("Measurement:\n", z)
+            # Refresh Measurement noise R
+            for j in range(0, 6):
+                self.my_kf.R[j, j] = self.sigma_list[-g][j]
+                
+            # UPDATE
+            self.my_kf.update(z, HJacobian_at, hx)
+            print("X-:\n", self.my_kf.x)
+            # Log Posterior State x
+            self.xs.append(self.my_kf.x)
+            
+            # PREDICTION
+            self.my_kf.predict()
+            print("X+:\n", self.my_kf.x)
         
         print("EKF process time = %.6f s" % (time.time() - start_t))
         
         
-    def new_measure(ether_msg, rssi, len_pose=12, visual=False):
+    def new_measure(self, *args):
         start_t = time.time()
-        
-        self.pos.rssi_list.append(rssi)
-        for idx in range(0, len(ether_msg), len_pose):
-            final_pose = ether_msg[idx:idx+6]
-            sigma_pose = ether_msg[idx+6:idx+12]
+        len_pose=12
+        gap = 0
+        msg_list = []
+        # First (args) is Object!?
+        for arg in args:
+            msg_list.append(arg)
+            #print(type(arg))
+        rssi = msg_list[-1]
+        msg_list = msg_list[:-1]
+        self.rssi_list.append(rssi)
+        #print(len(msg_list))
+        for idx in range(0, len(msg_list), len_pose):
+            final_pose = msg_list[idx:idx+6]
+            sigma_pose = msg_list[idx+6:idx+12]
             #print(final_pose)
             #print(sigma_pose)
-            self.pos.final_list.append(final_pose)
-            self.pos.sigma_list.append(sigma_pose)
+            self.final_list.append(final_pose)
+            self.sigma_list.append(sigma_pose)
             
             pred_transform_t = convert_eul_to_matrix(0, 0, 0, final_pose)
-            abs_pred_transform = np.dot(self.pos.pred_transform_t_1, pred_transform_t)
-            self.pos.out_pred_array.append([abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2], abs_pred_transform[0, 3],
+            abs_pred_transform = np.dot(self.pred_transform_t_1, pred_transform_t)
+            self.out_pred_array.append([abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2], abs_pred_transform[0, 3],
                                             abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2], abs_pred_transform[1, 3],
                                             abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2], abs_pred_transform[2, 3]])
-            self.pos.pred_transform_t_1 = abs_pred_transform
+            self.pred_transform_t_1 = abs_pred_transform
+            
             #pos.odom_quat = tf.transformations.quaternion_from_matrix(pos.pred_transform_t_1)
             #print(pos.odom_quat)
-
-        print(self.pos.out_pred_array[-1])
-        print("Elapsed time 1 = ", time.time() - start_t)
-        start_t = time.time()
+        gap = int(len(msg_list)/len_pose)
+        print(gap)
+        #print(self.out_pred_array[-1])
         
         euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
                               [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
                               [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]], dtype=float)
         euler_rad = mat2euler(euler_rot)
-        self.pos.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
-        print(pos.odom_quat)
+        self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
+        print("Current Quaternion = ", self.odom_quat)
         
         # Unit Vector from Eular Angle
         U = math.cos(euler_rad[0])*math.cos(euler_rad[1])
         V = math.sin(euler_rad[0])*math.cos(euler_rad[1])
         W = math.sin(euler_rad[1])
         
-        print("Elapsed time 2 = ", time.time() - start_t)
+        print("Elapsed time Pose2TrfMtx = ", time.time() - start_t)
+        start_t = time.time()
         
         # Trigger EKF
-        self.rt_run()
+        self.rt_run(gap)
+        print("Elapsed time of EKF = ", time.time() - start_t)
         
-        if visual:
-            
-            print("Visualisation of EKF_path and Odom_path in real-time")
         
         
     def sim_run(self):
@@ -269,7 +259,7 @@ class EKF_Fusion(object):
         
         # Refresh measurement noise R at runtime
         for j in range(0, 6):
-            self.my_kf.R[j, j] = np.random.rand()
+            self.my_kf.R[j, j] = 2*np.random.rand()
             
         # UPDATE
         self.my_kf.update(z, HJacobian_at, hx)
@@ -295,16 +285,23 @@ class EKF_Fusion(object):
 
         x_gt = [item[0][0, 0] for item in self.track]
         y_gt = [item[0][1, 0] for item in self.track]
-
-        plt.plot(x0, y0, 'r')
-        plt.plot(x_gt, y_gt, 'b')
-        plt.show()
+        
+        fig1 = plt.figure()
+        self.ax1 = fig1.add_subplot(1,1,1)
+        h1 = self.ax1.plot(x0, y0, 'b', label='Predicted')
+        h2 = self.ax1.plot(x_gt, y_gt, 'r', label='GroundTruth')
+        self.ax1.set_aspect('equal')
+        self.ax1.title.set_text("EKF Path v.s. GT")
+        self.ax1.set_xlabel("X (m)")
+        self.ax1.set_ylabel("Y (m)")
+        self.ax1.legend(loc='best')
+        
 
 
 if __name__=="__main__":
     
     dt = 0.1
-    ekf = EKF_Fusion(dt=dt)
+    ekf = EKF_Fusion(dt=dt, blit=False)
     
     T = 10.
     for i in range(int(T / dt)):
@@ -312,6 +309,6 @@ if __name__=="__main__":
         time.sleep(.1)
         
     ekf.sim_show()
-
+    plt.show()
 
 
