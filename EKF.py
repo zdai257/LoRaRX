@@ -13,6 +13,8 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib
 #matplotlib.use('agg')
+import sympy
+from sympy import Matrix, symbols
 
 
 # LoRa RX1 Coordinates
@@ -27,7 +29,7 @@ def HJacobian_at(x):
     Z = x[2, 0]
     denom = (X - R1[0])**2 + (Y - R1[1])**2 + (Z - R1[2])**2
     a = 28.57*math.log10(math.e)
-    # HJabobian in (7, 9) if ONE LoRa RX; (9, 9) if THREE LoRa RXs available
+    # HJabobian in (7, ?) if ONE LoRa RX; (9, ?) if THREE LoRa RXs available
     Jacob = array([[1, 0, 0, 0, 0, 0, 0, 0, 0],
                                      [0, 1, 0, 0, 0, 0, 0, 0, 0],
                                      [0, 0, 1, 0, 0, 0, 0, 0, 0],
@@ -71,7 +73,7 @@ class PoseVel(object):
         """
         
         # add some process noise to the system
-        self.vel = self.vel + .3 * (randn(3, 1) + 1.)
+        self.vel = self.vel + .3 * (randn() + 1.)
         self.rot = self.rot + 10. * (randn(3, 1) - 25.5)
         self.pos = self.pos + self.vel * self.dt
 
@@ -117,6 +119,8 @@ class EKF_Fusion():
         self.blit = blit
         self.handle_scat = None
         self.handle_arrw = None
+        self.handle_scat_ekf = None
+        self.handle_arrw_ekf = None
         self.ax1background = None
         self.ax2background = None
         
@@ -323,10 +327,15 @@ class EKF_Fusion():
         u, v, w = self.odom_quat[0], self.odom_quat[1], self.odom_quat[2]
     
         self.handle_scat.set_alpha(.2)
+        self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
+        self.handle_arrw_ekf.remove()
         self.handle_scat = self.ax21.scatter([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], color='b', marker='o', alpha=.9)
         self.handle_arrw = self.ax21.quiver([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]],
-            self.U, self.V, self.W, color='r', length=0.25, alpha=.9)
+            self.U, self.V, self.W, color='b', length=1., alpha=.7)
+        self.handle_scat_ekf = self.ax21.scatter([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], color='r', marker='o', alpha=.9)
+        # Not Attempting to Visual EKF Updated Orientation
+        #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         
         self.ax22.clear()
         self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
@@ -341,6 +350,7 @@ class EKF_Fusion():
             # redraw just the points
             self.ax21.draw_artist(self.handle_scat)
             self.ax21.draw_artist(self.handle_arrw)
+            self.ax21.draw_artist(self.handle_scat_ekf)
 
             # fill in the axes rectangle
             self.fig2.canvas.blit(self.ax21.bbox)
@@ -370,7 +380,8 @@ class EKF_Fusion():
         self.ax21.set_zlim(-2, 2)
         
         self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9)
-        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='r', length=0.25, alpha=.9)
+        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=1., alpha=.9)
+        self.handle_scat_ekf = self.ax21.scatter(x, y, z, color='r', marker='o', alpha=.9)
         
     def reset_view(self):
         self.rssi_list = []

@@ -10,4 +10,4 @@ python3 rx_lora.py P2P 10
 
 EKF simulation result:
 
-![sim_ekf_plot](https://github.com/zdai257/LoRaRX/blob/main/sim_example.png)
+![sim_ekf_plot](https://github.com/zdai257/LoRaRX/blob/main/demo2.png)
