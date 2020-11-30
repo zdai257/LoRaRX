@@ -179,8 +179,8 @@ class EKF_Fusion():
         self.xs = []
         self.track = []
         self.time = []
-
-
+        
+        
     def rt_run(self, gap):
         
         
@@ -193,20 +193,20 @@ class EKF_Fusion():
             final_pose.append(float(self.rssi_list[-1]))
             
             z = np.asarray(final_pose, dtype=float).reshape(-1, 1)
-            print("Measurement:\n", z)
+            #print("Measurement:\n", z)
             # Refresh Measurement noise R
             for j in range(0, 6):
                 self.my_kf.R[j, j] = self.sigma_list[-g][j]
                 
             # UPDATE
             self.my_kf.update(z, HJacobian_at, hx)
-            print("X-:\n", self.my_kf.x)
+            #print("X-:\n", self.my_kf.x)
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
             
             # PREDICTION
             self.my_kf.predict()
-            print("X+:\n", self.my_kf.x)
+            #print("X+:\n", self.my_kf.x)
         
             print("EKF per round takes %.6f s" % (time.time() - start_t))
         
@@ -242,20 +242,20 @@ class EKF_Fusion():
             #pos.odom_quat = tf.transformations.quaternion_from_matrix(pos.pred_transform_t_1)
             #print(pos.odom_quat)
         gap = int(len(msg_list)/len_pose)
-        print(gap)
         #print(self.out_pred_array[-1])
         
         euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
                               [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
                               [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]], dtype=float)
         euler_rad = mat2euler(euler_rot)
+        #print("Current Eular = ", euler_rad)
         self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
-        print("Current Quaternion = ", self.odom_quat)
+        #print("Current Quaternion = ", self.odom_quat)
         
         # Unit Vector from Eular Angle
-        U = math.cos(euler_rad[0])*math.cos(euler_rad[1])
-        V = math.sin(euler_rad[0])*math.cos(euler_rad[1])
-        W = math.sin(euler_rad[1])
+        self.U = math.cos(euler_rad[2])*math.cos(euler_rad[1])
+        self.V = math.sin(euler_rad[2])*math.cos(euler_rad[1])
+        self.W = math.sin(euler_rad[1])
         
         print("Elapsed time Pose2TrfMtx = ", time.time() - start_t)
         start_t = time.time()
@@ -320,13 +320,13 @@ class EKF_Fusion():
     def rt_show(self):
         start_t = time.time()
     
-        u, v, w = self.odom_quat[1], self.odom_quat[2], self.odom_quat[3]
+        u, v, w = self.odom_quat[0], self.odom_quat[1], self.odom_quat[2]
     
         self.handle_scat.set_alpha(.2)
         self.handle_arrw.remove()
         self.handle_scat = self.ax21.scatter([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], color='b', marker='o', alpha=.9)
         self.handle_arrw = self.ax21.quiver([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]],
-            u, v, w, color='r', length=0.25, alpha=.9)
+            self.U, self.V, self.W, color='r', length=0.25, alpha=.9)
         
         self.ax22.clear()
         self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
@@ -356,19 +356,19 @@ class EKF_Fusion():
         if stop_t > 0.8:
             self.fig2.savefig("live_rx.png")
             self.reset_view()
-            self.set_view([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], u, v, w)
+            self.set_view([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], self.U, self.V, self.W)
         
     def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0):
-        self.ax21.view_init(elev=30., azim=-75)
+        self.ax21.view_init(elev=60., azim=-75)
         self.ax21.set_title("Real-Time Pose", fontweight='bold')
         self.ax21.set_xlabel('X Axis (m)')
         self.ax21.set_ylabel('Y Axis (m)')
         self.ax21.set_zlabel('Z Axis (m)')
-        '''
-        self.ax21.set_xlim(-0, 1)
-        self.ax21.set_ylim(-0, 1)
-        self.ax21.set_zlim(-0, 1)
-        '''
+        
+        self.ax21.set_xlim(-2, 2)
+        self.ax21.set_ylim(-2, 2)
+        self.ax21.set_zlim(-2, 2)
+        
         self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9)
         self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='r', length=0.25, alpha=.9)
         

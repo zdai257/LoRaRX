@@ -134,11 +134,11 @@ try :
                 if r_buff != "" :
                     
                     now_rx = UtcNow()
-                    print("receive a P2P message at "+now_rx+" :")
+                    #print("receive a P2P message at "+now_rx+" :")
                     msg_len = len(r_buff)
-                    print("Received Data Length = ", msg_len)
+                    #print("Received Data Length = ", msg_len)
                     msg = []
-                    print(r_buff)
+                    #print(r_buff)
                     '''
                     for id in range(0, 240, 4):
                         msg0 = r_buff[id:id+4]
@@ -153,11 +153,10 @@ try :
                         r_buff = ""
                     elif buff_len == len_num_bytes:
                         msg_buff += r_buff[:-1]
-                        print("Complete Msg = ", msg_buff)
-                        #print(str(r_buff[-1]))
+                        #print("Complete Msg = ", msg_buff)
+                        
                         rssi = int(r_buff[-1]) - 256
-                        #rssi_hex = r_buff[-1].encode("hex") # Python2 needs Encoding, but not Python3!
-                        #rssi = int(rssi_hex, base=16) - 256
+                        
                         print("RSSI = "+str(rssi)+" dBm\r\n")
                         r_buff = ""
                         print("Total Length of Msg = %d\n" % len(msg_buff))
@@ -175,12 +174,14 @@ try :
                             msg_list.append(msg0[0])
                         
                         msg_list.append(rssi)
-                        
-                        # Visulisation
-                        #parse_msg(msg_list, rssi, visual=True)
-                        # EKF
-                        ekf.new_measure(*msg_list)
-                        
+                        try:
+                            # Visulisation
+                            #parse_msg(msg_list, rssi, visual=True)
+                            # EKF
+                            ekf.new_measure(*msg_list)
+                        except:
+                            print("EKF FAILED\n")
+                            
                         # Logging
                         with open(log_filename, "a+") as f:
                             f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list), rssi))
