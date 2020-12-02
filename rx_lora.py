@@ -13,7 +13,7 @@ import math
 from EKF import EKF_Fusion
 
 
-ekf = EKF_Fusion(dt=0.1, blit=False)
+ekf = EKF_Fusion(dt=0.1, visual=True)
 
 def UtcNow():
     now = datetime.datetime.utcnow()

@@ -18,7 +18,7 @@ from sympy import Matrix, symbols
 
 
 # LoRa RX1 Coordinates
-R1 = np.array([1., 1., 0])
+R1 = np.array([0., 0., 0.])
 
 
 def HJacobian_at(x):
@@ -74,7 +74,7 @@ class PoseVel(object):
         """
         
         # add some process noise to the system
-        self.vel = self.vel + (1. * randn() + 0.)
+        self.vel = self.vel + (.1 * randn() + 0.)
         self.rot = self.rot + (.1 * randn(3, 1) + 0.)
         self.pos = self.pos + array([self.vel * self.dt * math.cos(self.rot[2, 0]), self.vel * self.dt * math.sin(self.rot[2, 0]), 0])
 
@@ -89,7 +89,7 @@ class PoseVel(object):
 
         # Simulate a decreasing/increasing RSSI
         #rssi = 22 - (28.57*math.log10(np.linalg.norm(self.pos - R1)) + 27.06)
-        rssi = -80 + .6*self.t_idx - 10*np.random.rand()
+        rssi = -80 + .8*self.t_idx - 10*np.random.rand()
         self.t_idx += 1
         #print("Measured RSSI: ", rssi)
 
@@ -101,7 +101,8 @@ class PoseVel(object):
 
 
 class EKF_Fusion():
-    def __init__(self, dt=0.1, dim_x=4, dim_z=3, blit=False):
+    def __init__(self, dt=0.1, dim_x=4, dim_z=3, blit=True, visual=False):
+        self.visual = visual
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
         [[1., 0, 0, 0],
@@ -139,7 +140,8 @@ class EKF_Fusion():
         if self.blit:
             self.ax1background = self.fig2.canvas.copy_from_bbox(self.ax21.bbox)
             self.ax2background = self.fig2.canvas.copy_from_bbox(self.ax22.bbox)
-        plt.show(block=False)
+        if self.visual:
+            plt.show(block=False)
         
         # Creating EKF
         self.dt = dt
@@ -232,8 +234,8 @@ class EKF_Fusion():
         print("Elapsed time of EKF = ", time.time() - start_t)
         
         print("State X:\n", self.my_kf.x)
-        # Trigger EKF
-        #self.rt_show()
+        if self.visual:
+            self.rt_show()
         
         
     def rt_run(self, gap):
@@ -243,6 +245,7 @@ class EKF_Fusion():
             # Get Measurement
             final_pose = self.final_list[-g]
             final_xy = final_pose[:2]
+            #print(final_xy)
             
             # Populate ONE Rssi for a 'gap' of Poses
             final_xy.append(float(self.rssi_list[-1]))
@@ -261,16 +264,17 @@ class EKF_Fusion():
             
             # PREDICTION
             self.my_kf.predict()
+            #print("X-:\n", self.my_kf.x)
             
             # UPDATE
             self.my_kf.update(z, HJacobian_at, hx)
-            #print("X-:\n", self.my_kf.x)
+            
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
             
-            
             #print("X+:\n", self.my_kf.x)
-            print("EKF per round takes %.6f s" % (time.time() - start_t))
+            
+            #print("EKF per round takes %.6f s" % (time.time() - start_t))
         
         
     def sim_run(self):
@@ -325,6 +329,8 @@ class EKF_Fusion():
         self.ax1.set_ylabel("Y (m)")
         self.ax1.legend(loc='best')
         fig1.savefig("sim_example.png")
+        if self.visual:
+            plt.show()
         
         
     def rt_show(self):
@@ -334,14 +340,15 @@ class EKF_Fusion():
         self.handle_scat.set_alpha(.2)
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
-        print(self.path[-1])
+        
         #self.handle_arrw_ekf.remove()
-        self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9)
+        self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
             self.U, self.V, self.W, color='b', length=1., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter([self.xs[-1][0, 0]], [self.xs[-1][1, 0]], [0.], color='r', marker='o', alpha=.9)
+        self.handle_scat_ekf = self.ax21.scatter([self.xs[-1][0, 0]], [self.xs[-1][1, 0]], [0.], color='r', marker='o', alpha=.9, label='LoRa-MIO')
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
+        
         
         self.ax22.clear()
         self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
@@ -369,7 +376,8 @@ class EKF_Fusion():
     
         stop_t = time.time() - start_t
         print("Elapsed time of VISUALISATION = ", stop_t)
-        if stop_t > 0.8:
+        # Constrain PLOT time to avoid msg Overflow
+        if stop_t > 0.85:
             self.fig2.savefig("live_rx.png")
             self.reset_view()
             self.set_view(self.path[-1][0], self.path[-1][1], self.path[-1][2], self.U, self.V, self.W, self.xs[-1][0, 0], self.xs[-1][1, 0], 0.)
@@ -380,14 +388,18 @@ class EKF_Fusion():
         self.ax21.set_xlabel('X Axis (m)')
         self.ax21.set_ylabel('Y Axis (m)')
         self.ax21.set_zlabel('Z Axis (m)')
+        
         '''
         self.ax21.set_xlim(-2, 2)
         self.ax21.set_ylim(-2, 2)
         self.ax21.set_zlim(-2, 2)
         '''
-        self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9)
-        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=1., alpha=.9)
-        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9)
+        quiv_len = np.sqrt(u**2 + v**2 + w**2)
+        self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9, label='MIO')
+        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=quiv_len, alpha=.9)
+        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9, label='LoRa-MIO')
+        self.ax21.legend(loc='upper left')
+        
         
     def reset_view(self):
         self.rssi_list = []
@@ -397,7 +409,7 @@ class EKF_Fusion():
 if __name__=="__main__":
     
     dt = 0.1
-    ekf = EKF_Fusion(dt=dt, blit=False)
+    ekf = EKF_Fusion(dt=dt)
     
     T = 10.
     for i in range(int(T / dt)):
@@ -405,6 +417,6 @@ if __name__=="__main__":
         time.sleep(.1)
         
     ekf.sim_show()
-    plt.show()
+    
 
 
