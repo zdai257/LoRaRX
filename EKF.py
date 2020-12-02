@@ -18,25 +18,23 @@ from sympy import Matrix, symbols
 
 
 # LoRa RX1 Coordinates
-R1 = np.array([200., 200., 0])
+R1 = np.array([1., 1., 0])
 
 
 def HJacobian_at(x):
     """ compute Jacobian of H matrix for state x """
-
+    dt = .1
     X = x[0, 0]
     Y = x[1, 0]
-    Z = x[2, 0]
-    denom = (X - R1[0])**2 + (Y - R1[1])**2 + (Z - R1[2])**2
-    a = 28.57*math.log10(math.e)
-    # HJabobian in (7, ?) if ONE LoRa RX; (9, ?) if THREE LoRa RXs available
-    Jacob = array([[1, 0, 0, 0, 0, 0, 0, 0, 0],
-                                     [0, 1, 0, 0, 0, 0, 0, 0, 0],
-                                     [0, 0, 1, 0, 0, 0, 0, 0, 0],
-                                     [0, 0, 0, 1, 0, 0, 0, 0, 0],
-                                     [0, 0, 0, 0, 1, 0, 0, 0, 0],
-                                     [0, 0, 0, 0, 0, 1, 0, 0, 0],
-                                     [a*(X - R1[0])/denom, a*(Y - R1[1])/denom, a*(Z - R1[2])/denom, 0, 0, 0, 0, 0, 0]])
+    #Z = x[2, 0]
+    theta = x[2, 0]
+    V = x[3, 0]
+    denom = (X - R1[0])**2 + (Y - R1[1])**2
+    a = -28.57*math.log10(math.e)
+    # HJabobian in (3, 4) if ONE LoRa RX; (5, 4) if THREE LoRa RXs available
+    Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
+                                     [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)],
+                                     [a*(X - R1[0])/denom, a*(Y - R1[1])/denom, 0, 0]])
     #return array ([[(X - R1[0])/denom, (Y - R1[1])/denom, (Z - R1[2])/denom, 0, 0, 0, 0, 0, 0]]) * 28.57*math.log10(math.e)
     
     #print("HJacobian return: ", Jacob.shape)
@@ -44,13 +42,16 @@ def HJacobian_at(x):
 
 
 def hx(x):
-    """ compute measurement for (Pose + RSSI) that would correspond to state x.
+    """ compute measurement of (X, Y, RSSI) that would correspond to state x.
     """
-    # PL Regression Model
-    rssi = 22 - (28.57*math.log10(np.linalg.norm(x[:3] - R1)) + 27.06)
+    dt = .1
+    trans_x = dt * x[3, 0] * math.cos(x[2, 0])
+    trans_y = dt * x[3, 0] * math.sin(x[2, 0])
+    # RSSI Regression Model
+    rssi = -28.57*math.log10(np.linalg.norm(x[:2] - R1[:2])) - 5.06
 
-    # Measurement comprises 6DoF Pose + RSSIs
-    h = array([x[0, 0], x[1, 0], x[2, 0], x[3, 0], x[4, 0], x[5, 0], rssi]).reshape((-1, 1))
+    # Measurement comprises (X, Y, RSSIs)
+    h = array([trans_x, trans_y, rssi]).reshape((-1, 1))
     #print("hx return shape: ", h.shape)
     return h
 
@@ -73,40 +74,44 @@ class PoseVel(object):
         """
         
         # add some process noise to the system
-        self.vel = self.vel + .3 * (randn() + 1.)
-        self.rot = self.rot + 10. * (randn(3, 1) - 25.5)
-        self.pos = self.pos + self.vel * self.dt
+        self.vel = self.vel + (1. * randn() + 0.)
+        self.rot = self.rot + (.1 * randn(3, 1) + 0.)
+        self.pos = self.pos + array([self.vel * self.dt * math.cos(self.rot[2, 0]), self.vel * self.dt * math.sin(self.rot[2, 0]), 0])
 
         # Constrain Path to 2D
-        self.vel[2, 0] = 0.
+        #self.vel[2, 0] = 0.
         self.rot[0, 0], self.rot[1, 0] = 0., 0.
         self.pos[2, 0] = 0.
 
-        # Add measurement noise of 15%
-        z_pos = self.pos * (1 + 0.15 * randn(3, 1))
-        z_rot = self.rot * (1 + 0.15 * randn(3, 1))
+        # Add measurement noise of 5%
+        z_pos = self.pos * (1 + 0.05 * randn(3, 1))
+        z_rot = self.rot * (1 + 0.05 * randn(3, 1))
 
         # Simulate a decreasing/increasing RSSI
         #rssi = 22 - (28.57*math.log10(np.linalg.norm(self.pos - R1)) + 27.06)
-        rssi = -100 + .8*self.t_idx - 10*np.random.rand()
+        rssi = -80 + .6*self.t_idx - 10*np.random.rand()
         self.t_idx += 1
         #print("Measured RSSI: ", rssi)
 
         # Generate Observation
-        z0 = array([[z_pos[0, 0]], [z_pos[1, 0]], [z_pos[2, 0]], [z_rot[0, 0]], [z_rot[1, 0]], [z_rot[2, 0]], [rssi]])
+        z0 = array([[z_pos[0, 0]], [z_pos[1, 0]], [rssi]])
         #print("Generate Measurement shape: ", z0.shape)
         return z0
 
 
 
 class EKF_Fusion():
-    def __init__(self, dt=0.1, dim_x=9, dim_z=7, blit=False):
+    def __init__(self, dt=0.1, dim_x=4, dim_z=3, blit=False):
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
         [[1., 0, 0, 0],
         [0, 1., 0, 0],
         [0, 0, 1., 0],
         [0, 0, 0, 1.]])
+        '''
+        z0, y0, x0 = mat2euler(self.pred_transform_t_1[:3, :3])
+        print(euler2quat(z0, y0, x0))
+        '''
         self.out_pred_array = []
         self.final_list = []
         self.sigma_list = []
@@ -140,42 +145,26 @@ class EKF_Fusion():
         self.dt = dt
         self.my_kf = ExtendedKalmanFilter(dim_x=dim_x, dim_z=dim_z)
         # Create synthetic Pose and Velocity
-        self.pv = PoseVel(dt=self.dt, pos=np.zeros(shape=(3, 1)), rot=np.zeros(shape=(3, 1)), vel=np.zeros(shape=(3, 1)))
+        self.pv = PoseVel(dt=self.dt, pos=np.zeros(shape=(3, 1)), rot=np.zeros(shape=(3, 1)), vel=30.)
 
         # make an imperfect starting guess
-        self.my_kf.x = array([0.1, -0.2, 0., 0.01, 0.01, 0.05, -0.15, 0.1, 0.]).reshape(-1, 1)
+        self.my_kf.x = array([0., 0., 0., 0.01]).reshape(-1, 1)
 
         # State Transition Martrix: F
-        self.my_kf.F = eye(9) + array([[0, 0, 0, 0, 0, 0, 1, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 1, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 1],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                  [0, 0, 0, 0, 0, 0, 0, 0, 0]]) * self.dt
+        self.my_kf.F = eye(4) + array([[0, 0, 0, 1.],
+                                  [0, 0, .01, 0],
+                                  [0, 0, 0, 0],
+                                  [0, 0, 0, 0]]) * self.dt
 
         # Measurement Noise: R Can be defined Dynamic with MDN-Sigma!
         # my_kf.R = 4.887 # if using 1-dimension Measurement
-        self.my_kf.R = np.array([[.2, 0, 0, 0, 0, 0, 0],
-                            [0, .2, 0, 0, 0, 0, 0],
-                            [0, 0, .2, 0, 0, 0, 0],
-                            [0, 0, 0, .2, 0, 0, 0],
-                            [0, 0, 0, 0, .2, 0, 0],
-                            [0, 0, 0, 0, 0, .2, 0],
-                            [0, 0, 0, 0, 0, 0, 4.887 ** 2]])
+        self.my_kf.R = np.diag(np.array([.1**2, .1**2, 4.887**2]))
 
         # Process Noise: Q
-        self.my_kf.Q = 0.01 * eye(9) + array([[0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 1, 0, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 1, 0],
-                                         [0, 0, 0, 0, 0, 0, 0, 0, 1]]) * 0.04
+        self.my_kf.Q = array([[0, 0, 0, 0],
+                                         [0, 0, 0, 0],
+                                         [0, 0, .01, 0],
+                                         [0, 0, 0, .1]])
         # Initial Error Covariance: P0
         self.my_kf.P *= 50
 
@@ -183,36 +172,8 @@ class EKF_Fusion():
         self.xs = []
         self.track = []
         self.time = []
-        
-        
-    def rt_run(self, gap):
-        
-        
-        for g in range(gap, 0, -1):
-            start_t = time.time()
-            # Get Measurement
-            final_pose = self.final_list[-g]
-            
-            # Populate ONE Rssi for a 'gap' of Poses
-            final_pose.append(float(self.rssi_list[-1]))
-            
-            z = np.asarray(final_pose, dtype=float).reshape(-1, 1)
-            #print("Measurement:\n", z)
-            # Refresh Measurement noise R
-            for j in range(0, 6):
-                self.my_kf.R[j, j] = self.sigma_list[-g][j]
-                
-            # UPDATE
-            self.my_kf.update(z, HJacobian_at, hx)
-            #print("X-:\n", self.my_kf.x)
-            # Log Posterior State x
-            self.xs.append(self.my_kf.x)
-            
-            # PREDICTION
-            self.my_kf.predict()
-            #print("X+:\n", self.my_kf.x)
-        
-            print("EKF per round takes %.6f s" % (time.time() - start_t))
+        self.path = []
+        self.path_ekf = []
         
         
     def new_measure(self, *args):
@@ -261,6 +222,8 @@ class EKF_Fusion():
         self.V = math.sin(euler_rad[2])*math.cos(euler_rad[1])
         self.W = math.sin(euler_rad[1])
         
+        self.path.append([abs_pred_transform[0, 3], abs_pred_transform[1, 3], 0])
+        
         print("Elapsed time Pose2TrfMtx = ", time.time() - start_t)
         start_t = time.time()
         
@@ -268,9 +231,46 @@ class EKF_Fusion():
         self.rt_run(gap)
         print("Elapsed time of EKF = ", time.time() - start_t)
         
+        print("State X:\n", self.my_kf.x)
         # Trigger EKF
-        self.rt_show()
+        #self.rt_show()
         
+        
+    def rt_run(self, gap):
+        
+        for g in range(gap, 0, -1):
+            start_t = time.time()
+            # Get Measurement
+            final_pose = self.final_list[-g]
+            final_xy = final_pose[:2]
+            
+            # Populate ONE Rssi for a 'gap' of Poses
+            final_xy.append(float(self.rssi_list[-1]))
+            
+            z = np.asarray(final_xy, dtype=float).reshape(-1, 1)
+            #print("Measurement:\n", z)
+            # Refresh Measurement noise R
+            for j in range(0, 2):
+                self.my_kf.R[j, j] = self.sigma_list[-g][j]
+                
+            # Refresh State Transition Martrix: F
+            self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
+                                  [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],
+                                  [0, 0, 0, 0],
+                                  [0, 0, 0, 0]]) * self.dt
+            
+            # PREDICTION
+            self.my_kf.predict()
+            
+            # UPDATE
+            self.my_kf.update(z, HJacobian_at, hx)
+            #print("X-:\n", self.my_kf.x)
+            # Log Posterior State x
+            self.xs.append(self.my_kf.x)
+            
+            
+            #print("X+:\n", self.my_kf.x)
+            print("EKF per round takes %.6f s" % (time.time() - start_t))
         
         
     def sim_run(self):
@@ -281,17 +281,23 @@ class EKF_Fusion():
         self.track.append((self.pv.pos, self.pv.rot, self.pv.vel))
         
         # Refresh measurement noise R at runtime
-        for j in range(0, 6):
-            self.my_kf.R[j, j] = 2*np.random.rand()
-            
+        for j in range(0, 3):
+            self.my_kf.R[j, j] = 2.*np.random.rand()
+        
+        # Refresh State Transition Martrix: F
+        self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
+                                  [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],
+                                  [0, 0, 0, 0],
+                                  [0, 0, 0, 0]]) * self.dt
+        
+        # PREDICTION
+        self.my_kf.predict()
+        
         # UPDATE
         self.my_kf.update(z, HJacobian_at, hx)
 
         # Log Posterior State x
         self.xs.append(self.my_kf.x)
-
-        # PREDICTION
-        self.my_kf.predict()
         
         print("EKF process time = %.6f s" % (time.time() - start_t))
         
@@ -323,17 +329,17 @@ class EKF_Fusion():
         
     def rt_show(self):
         start_t = time.time()
-    
-        u, v, w = self.odom_quat[0], self.odom_quat[1], self.odom_quat[2]
-    
+        #u, v, w = self.odom_quat[0], self.odom_quat[1], self.odom_quat[2]
+        
         self.handle_scat.set_alpha(.2)
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
-        self.handle_arrw_ekf.remove()
-        self.handle_scat = self.ax21.scatter([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], color='b', marker='o', alpha=.9)
-        self.handle_arrw = self.ax21.quiver([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]],
+        print(self.path[-1])
+        #self.handle_arrw_ekf.remove()
+        self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9)
+        self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
             self.U, self.V, self.W, color='b', length=1., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], color='r', marker='o', alpha=.9)
+        self.handle_scat_ekf = self.ax21.scatter([self.xs[-1][0, 0]], [self.xs[-1][1, 0]], [0.], color='r', marker='o', alpha=.9)
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         
@@ -366,22 +372,22 @@ class EKF_Fusion():
         if stop_t > 0.8:
             self.fig2.savefig("live_rx.png")
             self.reset_view()
-            self.set_view([self.final_list[-1][0]], [self.final_list[-1][1]], [self.final_list[-1][2]], self.U, self.V, self.W)
+            self.set_view(self.path[-1][0], self.path[-1][1], self.path[-1][2], self.U, self.V, self.W, self.xs[-1][0, 0], self.xs[-1][1, 0], 0.)
         
-    def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0):
+    def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
         self.ax21.view_init(elev=60., azim=-75)
         self.ax21.set_title("Real-Time Pose", fontweight='bold')
         self.ax21.set_xlabel('X Axis (m)')
         self.ax21.set_ylabel('Y Axis (m)')
         self.ax21.set_zlabel('Z Axis (m)')
-        
+        '''
         self.ax21.set_xlim(-2, 2)
         self.ax21.set_ylim(-2, 2)
         self.ax21.set_zlim(-2, 2)
-        
+        '''
         self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9)
         self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=1., alpha=.9)
-        self.handle_scat_ekf = self.ax21.scatter(x, y, z, color='r', marker='o', alpha=.9)
+        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9)
         
     def reset_view(self):
         self.rssi_list = []
