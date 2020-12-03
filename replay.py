@@ -6,6 +6,49 @@ from EKF import *
 
 
 
+def HJacobian_at_ZYaw(x, anchor=1):
+    """ compute Jacobian of H matrix for state x """
+    dt = .1
+    X = x[0, 0]
+    Y = x[1, 0]
+    #Z = x[2, 0]
+    theta = x[2, 0]
+    V = x[3, 0]
+    denom = (X - R1[anchor-1, 0])**2 + (Y - R1[anchor-1, 1])**2
+    if denom < 0.25:
+        denom = 0.25
+    a = -28.57*math.log10(math.e)
+    # HJabobian in (4, 4) if ONE LoRa RX; (6, 4) if THREE LoRa RXs available
+    Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
+                   [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)],
+                   [0, 0, 1, 0]])
+    for row in range(0, anchor):
+        Jacob = np.vstack((Jacob, array([[a*(X - R1[row, 0])/denom, a*(Y - R1[row, 1])/denom, 0, 0]])))
+    #print("HJacobian return: ", Jacob)
+    return Jacob
+
+
+def hx_ZYaw(x, anchor=1):
+    """ compute measurement of [X, Y, Yaw, RSSIs...]^T that would correspond to state x.
+    """
+    dt = .1
+    trans_x = dt * x[3, 0] * math.cos(x[2, 0])
+    trans_y = dt * x[3, 0] * math.sin(x[2, 0])
+    abs_yaw = x[2, 0]
+    h = array([trans_x, trans_y, abs_yaw]).reshape((-1, 1))
+    for row in range(0, anchor):
+        dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
+        if dis > 0.5:
+            # RSSI Regression Model
+            rssi = -28.57*math.log10(dis) - 5.06
+        else:
+            rssi = -28.57*math.log10(0.5) - 5.06
+        
+        # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
+        h = np.vstack((h, array([[rssi]])))
+    #print("hx return shape: ", h.shape)
+    return h
+
 
 
 class EKF_Fusion_MultiRX(EKF_Fusion):
@@ -35,11 +78,70 @@ class EKF_Fusion_MultiRX(EKF_Fusion):
         
 
 
-
+class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
+    def __init__(self, anchor, dt=0.1, visual=True):
+        if type(anchor) != int or anchor < 1:
+            print("Number of anchor should be integer greater than 0")
+            raise TypeError
+        self.anchor = anchor
+        super().__init__(dim_z=3+self.anchor, dt=dt, visual=visual)
+        # TWEEK PARAMS
+        self.my_kf.x = np.array([0., 0., 0., 0.3]).reshape(-1, 1)
+        self.my_kf.P = np.diag(np.array([10., 10., 20., 20.]))
+        self.my_kf.Q = np.diag(np.array([.0, .0, 0.0, 0.01]))
+        
+        measure_noise = np.array([1.**2, 1.**2, .1**2, 4.887**2])
+        for dim in range(1, self.anchor):
+            measure_noise = np.hstack((measure_noise, np.array([4.887**2])))
+        self.my_kf.R = np.diag(measure_noise)
+        
+        
+    def rt_run(self, gap):
+        
+        for g in range(gap, 0, -1):
+            start_t = time.time()
+            # Get Measurement
+            final_pose = self.final_list[-g]
+            final_xy = final_pose[:2]
+            final_xy.append(self.abs_yaw) #Add Yaw as measurement!
+            # Populate ONE Rssi for a 'gap' of Poses
+            final_xy.append(float(self.rssi_list[-1]))
+            z = np.asarray(final_xy, dtype=float).reshape(-1, 1)
+            #print("Measurement:\n", z)
+            
+            # Refresh Measurement noise R
+            self.my_kf.R[0, 0] = self.sigma_list[-g][0]**2
+            self.my_kf.R[1, 1] = self.sigma_list[-g][1]**2
+            self.my_kf.R[2, 2] = self.sigma_list[-g][5]**2 # Sigma of rot_z or Yaw
+            # Refresh State Transition Martrix: F
+            self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
+                                  [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],
+                                  [0, 0, 0, 0],
+                                  [0, 0, 0, 0]]) * self.dt
+            # PREDICTION
+            self.my_kf.predict()
+            #print("X-:\n", self.my_kf.x)
+            
+            # UPDATE
+            self.my_kf.update(z, HJacobian_at_ZYaw, hx_ZYaw, args=(self.anchor), hx_args=(self.anchor))
+            
+            # Log Posterior State x
+            self.xs.append(self.my_kf.x)
+            #print("X+:\n", self.my_kf.x)
+            #print("EKF per round takes %.6f s" % (time.time() - start_t))
+    
+    
+    def rt_show(self):
+        super(EKF_Fusion_MultiRX_ZYaw, self).rt_show(t_limit=100.)
+        pass
+        
+        
+        
+        
 
 if __name__=="__main__":
     
-    ekf = EKF_Fusion_MultiRX(anchor=1)
+    ekf = EKF_Fusion_MultiRX_ZYaw(anchor=1)
     
     # TODO replay the logged LoRa RX messages
     dt = 0.1

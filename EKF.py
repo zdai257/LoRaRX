@@ -194,6 +194,7 @@ class EKF_Fusion():
         self.time = []
         self.path = []
         self.path_ekf = []
+        self.abs_yaw = 0
         
         
     def new_measure(self, *args):
@@ -233,6 +234,7 @@ class EKF_Fusion():
                               [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
                               [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]], dtype=float)
         euler_rad = mat2euler(euler_rot)
+        self.abs_yaw = euler_rad[0]
         #print("Current Eular = ", euler_rad)
         self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
         #print("Current Quaternion = ", self.odom_quat)
@@ -285,7 +287,7 @@ class EKF_Fusion():
             #print("X-:\n", self.my_kf.x)
             
             # UPDATE
-            self.my_kf.update(z, HJacobian_at, hx)
+            self.my_kf.update(z, HJacobian_at, hx, args=(anchor), hx_args=(anchor))
             
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
