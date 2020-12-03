@@ -34,8 +34,8 @@ def HJacobian_at(x, anchor=1):
     theta = x[2, 0]
     V = x[3, 0]
     denom = (X - R1[anchor-1, 0])**2 + (Y - R1[anchor-1, 1])**2
-    if denom == 0:
-        denom = .5
+    if denom < 0.25:
+        denom = 0.25
     a = -28.57*math.log10(math.e)
     # HJabobian in (3, 4) if ONE LoRa RX; (5, 4) if THREE LoRa RXs available
     Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
@@ -58,12 +58,12 @@ def hx(x, anchor=1):
     for row in range(0, anchor):
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
         
-        if dis > 1:
+        if dis > 0.5:
             # RSSI Regression Model
             rssi = -28.57*math.log10(dis) - 5.06
             
         else:
-            rssi = -3
+            rssi = -28.57*math.log10(0.5) - 5.06
         
         # Measurement comprises (X, Y, RSSIs)
         h = np.vstack((h, array([[rssi]])))
@@ -171,14 +171,14 @@ class EKF_Fusion():
         self.my_kf.x = array([0., 0., 0., 0.01]).reshape(-1, 1)
 
         # State Transition Martrix: F
-        self.my_kf.F = eye(4) + array([[0, 0, 0, 1.],
-                                  [0, 0, .01, 0],
+        self.my_kf.F = eye(4) + array([[0, 0, 0, 0],
+                                  [0, 0, 0, 0],
                                   [0, 0, 0, 0],
                                   [0, 0, 0, 0]]) * self.dt
 
         # Measurement Noise: R Can be defined Dynamic with MDN-Sigma!
         # my_kf.R = 4.887 # if using 1-dimension Measurement
-        self.my_kf.R = np.diag(np.array([.1**2, .1**2, 4.887**2]))
+        self.my_kf.R = np.diag(np.array([1.**2, 1.**2, 4.887**2]))
 
         # Process Noise: Q
         self.my_kf.Q = array([[0, 0, 0, 0],
@@ -272,7 +272,7 @@ class EKF_Fusion():
             #print("Measurement:\n", z)
             # Refresh Measurement noise R
             for j in range(0, 2):
-                self.my_kf.R[j, j] = self.sigma_list[-g][j]
+                self.my_kf.R[j, j] = self.sigma_list[-g][j]**2 # Sigma stands for Standard Deviation
                 
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
@@ -352,7 +352,7 @@ class EKF_Fusion():
             plt.show()
         
         
-    def rt_show(self):
+    def rt_show(self, t_limit=0.85):
         start_t = time.time()
         #u, v, w = self.odom_quat[0], self.odom_quat[1], self.odom_quat[2]
         
@@ -396,7 +396,7 @@ class EKF_Fusion():
         stop_t = time.time() - start_t
         print("Elapsed time of VISUALISATION = ", stop_t)
         # Constrain PLOT time to avoid msg Overflow
-        if stop_t > 0.85:
+        if stop_t > t_limit:
             self.fig2.savefig("live_rx.png")
             self.reset_view()
             self.set_view(self.path[-1][0], self.path[-1][1], self.path[-1][2], self.U, self.V, self.W, self.xs[-1][0, 0], self.xs[-1][1, 0], 0.)

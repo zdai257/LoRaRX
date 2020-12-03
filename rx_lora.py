@@ -184,7 +184,7 @@ try :
                             
                         # Logging
                         with open(log_filename, "a+") as f:
-                            f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list), rssi))
+                            f.write("%s; %s; %d\n" % (now_rx, ','.join('%.8f' % item for item in msg_list[:-1]), rssi))
                             f.flush()
                         msg_list = []
                         msg_buff = b""
