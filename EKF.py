@@ -17,11 +17,15 @@ import sympy
 from sympy import Matrix, symbols
 
 
-# LoRa RX1 Coordinates
-R1 = np.array([0., 0., 0.])
+# LoRa RX Coordinates
+R1 = np.array([[0., 0., 0.],
+               [5., 0., 0.],
+               [0., 4., 0.],
+               [5., 4., 0.],
+               [2., -2.5, 0.]])
 
 
-def HJacobian_at(x):
+def HJacobian_at(x, anchor=1):
     """ compute Jacobian of H matrix for state x """
     dt = .1
     X = x[0, 0]
@@ -29,29 +33,40 @@ def HJacobian_at(x):
     #Z = x[2, 0]
     theta = x[2, 0]
     V = x[3, 0]
-    denom = (X - R1[0])**2 + (Y - R1[1])**2
+    denom = (X - R1[anchor-1, 0])**2 + (Y - R1[anchor-1, 1])**2
+    if denom == 0:
+        denom = .5
     a = -28.57*math.log10(math.e)
     # HJabobian in (3, 4) if ONE LoRa RX; (5, 4) if THREE LoRa RXs available
     Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
-                                     [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)],
-                                     [a*(X - R1[0])/denom, a*(Y - R1[1])/denom, 0, 0]])
-    #return array ([[(X - R1[0])/denom, (Y - R1[1])/denom, (Z - R1[2])/denom, 0, 0, 0, 0, 0, 0]]) * 28.57*math.log10(math.e)
+                                     [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)]])
     
-    #print("HJacobian return: ", Jacob.shape)
+    for row in range(0, anchor):
+        Jacob = np.vstack((Jacob, array([[a*(X - R1[row, 0])/denom, a*(Y - R1[row, 1])/denom, 0, 0]])))
+    
+    #print("HJacobian return: ", Jacob)
     return Jacob
 
 
-def hx(x):
-    """ compute measurement of (X, Y, RSSI) that would correspond to state x.
+def hx(x, anchor=1):
+    """ compute measurement of [X, Y, RSSIs...]^T that would correspond to state x.
     """
     dt = .1
     trans_x = dt * x[3, 0] * math.cos(x[2, 0])
     trans_y = dt * x[3, 0] * math.sin(x[2, 0])
-    # RSSI Regression Model
-    rssi = -28.57*math.log10(np.linalg.norm(x[:2] - R1[:2])) - 5.06
-
-    # Measurement comprises (X, Y, RSSIs)
-    h = array([trans_x, trans_y, rssi]).reshape((-1, 1))
+    h = array([trans_x, trans_y]).reshape((-1, 1))
+    for row in range(0, anchor):
+        dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
+        
+        if dis > 1:
+            # RSSI Regression Model
+            rssi = -28.57*math.log10(dis) - 5.06
+            
+        else:
+            rssi = -3
+        
+        # Measurement comprises (X, Y, RSSIs)
+        h = np.vstack((h, array([[rssi]])))
     #print("hx return shape: ", h.shape)
     return h
 
@@ -68,7 +83,7 @@ class PoseVel(object):
         self.dt = dt
         self.t_idx = 0
 
-    def get_measure(self):
+    def get_measure(self, anchor=1):
         """ Returns Observation/Measurement. Call once for each
         new measurement at dt time from last call.
         """
@@ -88,13 +103,16 @@ class PoseVel(object):
         z_rot = self.rot * (1 + 0.05 * randn(3, 1))
 
         # Simulate a decreasing/increasing RSSI
-        #rssi = 22 - (28.57*math.log10(np.linalg.norm(self.pos - R1)) + 27.06)
         rssi = -80 + .8*self.t_idx - 10*np.random.rand()
         self.t_idx += 1
         #print("Measured RSSI: ", rssi)
 
         # Generate Observation
         z0 = array([[z_pos[0, 0]], [z_pos[1, 0]], [rssi]])
+        
+        for dim in range(1, anchor):
+            rssi = -.8*self.t_idx - 10*np.random.rand()
+            z0 = np.vstack((z0, array([[rssi]])))
         #print("Generate Measurement shape: ", z0.shape)
         return z0
 
@@ -277,15 +295,16 @@ class EKF_Fusion():
             #print("EKF per round takes %.6f s" % (time.time() - start_t))
         
         
-    def sim_run(self):
+    def sim_run(self, anchor=1):
         start_t = time.time()
         
-        z = self.pv.get_measure()
+        z = self.pv.get_measure(anchor=anchor)
+        
         # Log track or GroundTruth
         self.track.append((self.pv.pos, self.pv.rot, self.pv.vel))
         
-        # Refresh measurement noise R at runtime
-        for j in range(0, 3):
+        # Refresh (x, y) of measurement noise R at runtime
+        for j in range(0, 2):
             self.my_kf.R[j, j] = 2.*np.random.rand()
         
         # Refresh State Transition Martrix: F
@@ -298,7 +317,7 @@ class EKF_Fusion():
         self.my_kf.predict()
         
         # UPDATE
-        self.my_kf.update(z, HJacobian_at, hx)
+        self.my_kf.update(z, HJacobian_at, hx, args=(anchor), hx_args=(anchor))
 
         # Log Posterior State x
         self.xs.append(self.my_kf.x)
