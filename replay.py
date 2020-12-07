@@ -17,7 +17,7 @@ def HJacobian_at_ZYaw(x, anchor=1):
     denom = (X - R1[anchor-1, 0])**2 + (Y - R1[anchor-1, 1])**2
     if denom < 0.25:
         denom = 0.25
-    a = -28.57*math.log10(math.e)
+    a = ALPHA*math.log10(math.e)
     # HJabobian in (4, 4) if ONE LoRa RX; (6, 4) if THREE LoRa RXs available
     Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
                    [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)],
@@ -38,11 +38,12 @@ def hx_ZYaw(x, anchor=1):
     h = array([trans_x, trans_y, abs_yaw]).reshape((-1, 1))
     for row in range(0, anchor):
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
-        if dis > 0.5:
+        thres_dis = 0.5
+        if dis > thres_dis:
             # RSSI Regression Model
-            rssi = -28.57*math.log10(dis) - 5.06
+            rssi = ALPHA*math.log10(dis) - BETA
         else:
-            rssi = -28.57*math.log10(0.5) - 5.06
+            rssi = ALPHA*math.log10(thres_dis) - BETA
         
         # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
         h = np.vstack((h, array([[rssi]])))
@@ -59,13 +60,13 @@ class EKF_Fusion_MultiRX(EKF_Fusion):
         self.anchor = anchor
         super().__init__(dim_z=2+self.anchor, dt=dt, visual=visual)
         # TWEEK PARAMS
-        self.my_kf.x = np.array([0., 0., math.pi/4, 0.1]).reshape(-1, 1)
+        self.my_kf.x = np.array([0., 0., 0., 0.1]).reshape(-1, 1)
         self.my_kf.P = np.diag(np.array([1., 1., 10., 20.]))
         self.my_kf.Q = np.diag(np.array([.01, .01, 1.0, 0.1]))
         
-        measure_noise = np.array([1.**2, 1.**2, 4.887**2])
+        measure_noise = np.array([1.**2, 1.**2, SIGMA**2])
         for dim in range(1, self.anchor):
-            measure_noise = np.hstack((measure_noise, np.array([4.887**2])))
+            measure_noise = np.hstack((measure_noise, np.array([SIGMA**2])))
         self.my_kf.R = np.diag(measure_noise)
         
     def sim_run(self):
@@ -86,13 +87,15 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
         self.anchor = anchor
         super().__init__(dim_z=3+self.anchor, dt=dt, visual=visual)
         # TWEEK PARAMS
-        self.my_kf.x = np.array([0., 0., math.pi/2, 0.3]).reshape(-1, 1)
-        self.my_kf.P = np.diag(np.array([10., 10., 20., 20.]))
-        self.my_kf.Q = np.diag(np.array([.0, .0, 0.0, 0.01]))
+        self.my_kf.x = np.array([0., 0., 0., 0.3]).reshape(-1, 1)
+        # Error Cov of Initial State
+        self.my_kf.Q = np.diag(np.array([.01, .01, 1.0, 1.0]))
+        # Process Noise Cov
+        self.my_kf.P = np.diag(np.array([1., 1., 0., 1.]))
         # Initial R doesn't matter; it is updated @run_rt
-        measure_noise = np.array([1.**2, 1.**2, .1**2, 4.887**2])
+        measure_noise = np.array([1.**2, 1.**2, .1**2, SIGMA**2])
         for dim in range(1, self.anchor):
-            measure_noise = np.hstack((measure_noise, np.array([4.887**2])))
+            measure_noise = np.hstack((measure_noise, np.array([SIGMA**2])))
         self.my_kf.R = np.diag(measure_noise)
         
         
@@ -110,9 +113,11 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
             #print("Measurement:\n", z)
             
             # Refresh Measurement noise R
-            self.my_kf.R[0, 0] = 0.0001#self.sigma_list[-g][0]**2
-            self.my_kf.R[1, 1] = 0.0001#self.sigma_list[-g][1]**2
-            self.my_kf.R[2, 2] = 0.0001#self.sigma_list[-g][5]**2 # Sigma of rot_z or Yaw
+            # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI
+            self.my_kf.R[0, 0] = 10.#self.sigma_list[-g][0]**2
+            self.my_kf.R[1, 1] = 10.#self.sigma_list[-g][1]**2
+            self.my_kf.R[2, 2] = 0.01#self.sigma_list[-g][5]**2 # Sigma of rot_z or Yaw
+            self.my_kf.R[3, 3] = 5*SIGMA**2
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
                                   [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],

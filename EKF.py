@@ -23,6 +23,10 @@ R1 = np.array([[0., 0., 0.],
                [0., 4., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
+# Path Loss Model params
+ALPHA = -59#-28.57
+BETA = -5.06
+SIGMA = 4.887
 
 
 def HJacobian_at(x, anchor=1):
@@ -36,7 +40,7 @@ def HJacobian_at(x, anchor=1):
     denom = (X - R1[anchor-1, 0])**2 + (Y - R1[anchor-1, 1])**2
     if denom < 0.25:
         denom = 0.25
-    a = -28.57*math.log10(math.e)
+    a = ALPHA*math.log10(math.e)
     # HJabobian in (3, 4) if ONE LoRa RX; (5, 4) if THREE LoRa RXs available
     Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
                                      [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)]])
@@ -57,13 +61,13 @@ def hx(x, anchor=1):
     h = array([trans_x, trans_y]).reshape((-1, 1))
     for row in range(0, anchor):
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
-        
-        if dis > 0.5:
+        thres_dis = 0.5
+        if dis > thres_dis:
             # RSSI Regression Model
-            rssi = -28.57*math.log10(dis) - 5.06
+            rssi = ALPHA*math.log10(dis) - BETA
             
         else:
-            rssi = -28.57*math.log10(0.5) - 5.06
+            rssi = ALPHA*math.log10(thres_dis) - BETA
         
         # Measurement comprises (X, Y, RSSIs)
         h = np.vstack((h, array([[rssi]])))
@@ -178,7 +182,7 @@ class EKF_Fusion():
 
         # Measurement Noise: R Can be defined Dynamic with MDN-Sigma!
         # my_kf.R = 4.887 # if using 1-dimension Measurement
-        self.my_kf.R = np.diag(np.array([1.**2, 1.**2, 4.887**2]))
+        self.my_kf.R = np.diag(np.array([1.**2, 1.**2, SIGMA**2]))
 
         # Process Noise: Q
         self.my_kf.Q = array([[0, 0, 0, 0],
@@ -370,7 +374,8 @@ class EKF_Fusion():
         self.handle_scat_ekf = self.ax21.scatter([self.xs[-1][0, 0]], [self.xs[-1][1, 0]], [0.], color='r', marker='o', alpha=.9, label='LoRa-MIO')
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
-        
+        # Manually Equal Axis and Limit
+        self.ax21.auto_scale_xyz([-10, 10], [0, 20], [-1, 1])
         
         self.ax22.clear()
         self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
@@ -405,7 +410,8 @@ class EKF_Fusion():
             self.set_view(self.path[-1][0], self.path[-1][1], self.path[-1][2], self.U, self.V, self.W, self.xs[-1][0, 0], self.xs[-1][1, 0], 0.)
         
     def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
-        self.ax21.view_init(elev=60., azim=-75)
+        
+        self.ax21.view_init(elev=75., azim=-75)
         self.ax21.set_title("Real-Time Pose", fontweight='bold')
         self.ax21.set_xlabel('X Axis (m)')
         self.ax21.set_ylabel('Y Axis (m)')
