@@ -86,10 +86,10 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
         self.anchor = anchor
         super().__init__(dim_z=3+self.anchor, dt=dt, visual=visual)
         # TWEEK PARAMS
-        self.my_kf.x = np.array([0., 0., 0., 0.3]).reshape(-1, 1)
+        self.my_kf.x = np.array([0., 0., math.pi/2, 0.3]).reshape(-1, 1)
         self.my_kf.P = np.diag(np.array([10., 10., 20., 20.]))
         self.my_kf.Q = np.diag(np.array([.0, .0, 0.0, 0.01]))
-        
+        # Initial R doesn't matter; it is updated @run_rt
         measure_noise = np.array([1.**2, 1.**2, .1**2, 4.887**2])
         for dim in range(1, self.anchor):
             measure_noise = np.hstack((measure_noise, np.array([4.887**2])))
@@ -110,9 +110,9 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
             #print("Measurement:\n", z)
             
             # Refresh Measurement noise R
-            self.my_kf.R[0, 0] = self.sigma_list[-g][0]**2
-            self.my_kf.R[1, 1] = self.sigma_list[-g][1]**2
-            self.my_kf.R[2, 2] = self.sigma_list[-g][5]**2 # Sigma of rot_z or Yaw
+            self.my_kf.R[0, 0] = 0.0001#self.sigma_list[-g][0]**2
+            self.my_kf.R[1, 1] = 0.0001#self.sigma_list[-g][1]**2
+            self.my_kf.R[2, 2] = 0.0001#self.sigma_list[-g][5]**2 # Sigma of rot_z or Yaw
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
                                   [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],

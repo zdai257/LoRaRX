@@ -233,16 +233,17 @@ class EKF_Fusion():
         euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
                               [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
                               [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]], dtype=float)
+        # euler_rad = (yaw, pitch, roll)
         euler_rad = mat2euler(euler_rot)
         self.abs_yaw = euler_rad[0]
         #print("Current Eular = ", euler_rad)
         self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
         #print("Current Quaternion = ", self.odom_quat)
         
-        # Unit Vector from Eular Angle
-        self.U = math.cos(euler_rad[2])*math.cos(euler_rad[1])
-        self.V = math.sin(euler_rad[2])*math.cos(euler_rad[1])
-        self.W = math.sin(euler_rad[1])
+        # Unit Vector from Eular Angle; Simplify Orientation Representation by Pitch = 0
+        self.U = math.cos(self.abs_yaw)#math.cos(euler_rad[0])*math.cos(euler_rad[1])
+        self.V = math.sin(self.abs_yaw)#math.sin(euler_rad[0])*math.cos(euler_rad[1])
+        self.W = 0#math.sin(euler_rad[1])
         
         self.path.append([abs_pred_transform[0, 3], abs_pred_transform[1, 3], 0])
         
@@ -252,7 +253,7 @@ class EKF_Fusion():
         # Trigger EKF
         self.rt_run(gap)
         print("Elapsed time of EKF = ", time.time() - start_t)
-        
+        print("ABS_YAW: ", self.abs_yaw)
         print("State X:\n", self.my_kf.x)
         if self.visual:
             self.rt_show()
@@ -274,7 +275,7 @@ class EKF_Fusion():
             #print("Measurement:\n", z)
             # Refresh Measurement noise R
             for j in range(0, 2):
-                self.my_kf.R[j, j] = self.sigma_list[-g][j]**2 # Sigma stands for Standard Deviation
+                self.my_kf.R[j, j] = sigma_list[-g][j]**2 # Sigma stands for Standard Deviation
                 
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
@@ -365,7 +366,7 @@ class EKF_Fusion():
         #self.handle_arrw_ekf.remove()
         self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
-            self.U, self.V, self.W, color='b', length=1., alpha=.7)
+            self.U, self.V, self.W, color='b', length=2., arrow_length_ratio=0.05, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter([self.xs[-1][0, 0]], [self.xs[-1][1, 0]], [0.], color='r', marker='o', alpha=.9, label='LoRa-MIO')
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
@@ -417,7 +418,7 @@ class EKF_Fusion():
         '''
         quiv_len = np.sqrt(u**2 + v**2 + w**2)
         self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9, label='MIO')
-        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=quiv_len, alpha=.9)
+        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.05, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         self.ax21.legend(loc='upper left')
         
