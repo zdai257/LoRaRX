@@ -10,6 +10,7 @@ from eulerangles import *
 from utility import *
 from plot_util import *
 from mpl_toolkits.mplot3d import Axes3D
+import mpl_toolkits.mplot3d.art3d as art3d
 import matplotlib.pyplot as plt
 import matplotlib
 #matplotlib.use('agg')
@@ -279,7 +280,7 @@ class EKF_Fusion():
             #print("Measurement:\n", z)
             # Refresh Measurement noise R
             for j in range(0, 2):
-                self.my_kf.R[j, j] = sigma_list[-g][j]**2 # Sigma stands for Standard Deviation
+                self.my_kf.R[j, j] = self.sigma_list[-g][j]**2 # Sigma stands for Standard Deviation
                 
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
@@ -292,6 +293,7 @@ class EKF_Fusion():
             #print("X-:\n", self.my_kf.x)
             
             # UPDATE
+            anchor = 1
             self.my_kf.update(z, HJacobian_at, hx, args=(anchor), hx_args=(anchor))
             
             # Log Posterior State x
@@ -366,6 +368,8 @@ class EKF_Fusion():
         self.handle_scat.set_alpha(.2)
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
+        # Remove Range Circle
+        self.cir1.remove()
         
         #self.handle_arrw_ekf.remove()
         self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9, label='MIO')
@@ -376,6 +380,12 @@ class EKF_Fusion():
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
         self.ax21.auto_scale_xyz([-2, 18], [-18, 2], [-1, 1])
+
+        # Plot Range
+        radius = 10**((self.rssi_list[-1] + BETA)/ALPHA)
+        circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
+        self.cir1 = self.ax21.add_patch(circle1)
+        art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
         
         self.ax22.clear()
         self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
@@ -427,6 +437,13 @@ class EKF_Fusion():
         self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         self.ax21.legend(loc='upper left')
+        # Init Range Display
+        if not self.rssi_list:
+            radius = 1
+        else:
+            radius = self.rssi_list[-1]
+        circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.2, linewidth=0.5)
+        self.cir1 = self.ax21.add_artist(circle1)
         
         
     def reset_view(self):
