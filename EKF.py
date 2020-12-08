@@ -24,7 +24,7 @@ R1 = np.array([[0., 0., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
 # Path Loss Model params
-ALPHA = -59#-28.57
+ALPHA = -45#-28.57
 BETA = -5.06
 SIGMA = 4.887
 
@@ -370,12 +370,12 @@ class EKF_Fusion():
         #self.handle_arrw_ekf.remove()
         self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
-            self.U, self.V, self.W, color='b', length=2., arrow_length_ratio=0.05, linewidths=3., alpha=.7)
+            self.U, self.V, self.W, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter([self.xs[-1][0, 0]], [self.xs[-1][1, 0]], [0.], color='r', marker='o', alpha=.9, label='LoRa-MIO')
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        self.ax21.auto_scale_xyz([-10, 10], [0, 20], [-1, 1])
+        self.ax21.auto_scale_xyz([-2, 18], [-18, 2], [-1, 1])
         
         self.ax22.clear()
         self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
@@ -424,7 +424,7 @@ class EKF_Fusion():
         '''
         quiv_len = np.sqrt(u**2 + v**2 + w**2)
         self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9, label='MIO')
-        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.05, linewidths=3., alpha=.7)
+        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         self.ax21.legend(loc='upper left')
         

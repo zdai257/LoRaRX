@@ -9,11 +9,11 @@ import datetime
 import struct
 import string
 import math
-#from visualise import *
 from EKF import EKF_Fusion
+from replay import EKF_Fusion_MultiRX, EKF_Fusion_MultiRX_ZYaw
 
 
-ekf = EKF_Fusion(dt=0.1, visual=True)
+ekf = EKF_Fusion_MultiRX_ZYaw(anchor=1, dt=0.1, visual=False)
 
 def UtcNow():
     now = datetime.datetime.utcnow()
