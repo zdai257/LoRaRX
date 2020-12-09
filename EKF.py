@@ -76,6 +76,97 @@ def hx(x, anchor=1):
     return h
 
 
+def HJacobian_at_ZYaw(x, anchor=1):
+    """ compute Jacobian of H matrix for state x """
+    dt = .1
+    X = x[0, 0]
+    Y = x[1, 0]
+    # Z = x[2, 0]
+    theta = x[2, 0]
+    V = x[3, 0]
+    denom = (X - R1[anchor - 1, 0]) ** 2 + (Y - R1[anchor - 1, 1]) ** 2
+    if denom < 0.25:
+        denom = 0.25
+    a = ALPHA * math.log10(math.e)
+    # HJabobian in (4, 4) if ONE LoRa RX; (6, 4) if THREE LoRa RXs available
+    Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
+                   [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)],
+                   [0, 0, 1, 0]])
+    for row in range(0, anchor):
+        Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0]])))
+    # print("HJacobian return: ", Jacob)
+    return Jacob
+
+
+def hx_ZYaw(x, anchor=1):
+    """ compute measurement of [X, Y, Yaw, RSSIs...]^T that would correspond to state x.
+    """
+    dt = .1
+    trans_x = dt * x[3, 0] * math.cos(x[2, 0])
+    trans_y = dt * x[3, 0] * math.sin(x[2, 0])
+    abs_yaw = x[2, 0]
+    h = array([trans_x, trans_y, abs_yaw]).reshape((-1, 1))
+    for row in range(0, anchor):
+        dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
+        thres_dis = 0.5
+        if dis > thres_dis:
+            # RSSI Regression Model
+            rssi = ALPHA * math.log10(dis) - BETA
+        else:
+            rssi = ALPHA * math.log10(thres_dis) - BETA
+
+        # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
+        h = np.vstack((h, array([[rssi]])))
+    # print("hx return shape: ", h.shape)
+    return h
+
+
+
+def HJacobian_at_AngularV(x, anchor=1):
+    """ compute Jacobian of H matrix for state x """
+    dt = .1
+    X = x[0, 0]
+    Y = x[1, 0]
+    theta = x[2, 0]
+    V = x[3, 0]
+    W = x[4, 0]
+    denom = (X - R1[anchor - 1, 0]) ** 2 + (Y - R1[anchor - 1, 1]) ** 2
+    if denom < 0.25:
+        denom = 0.25
+    a = ALPHA * math.log10(math.e)
+    # HJabobian in (4, 5) if ONE LoRa RX; (6, 5) if THREE LoRa RXs available
+    Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta), 0],
+                   [0, 0, dt * V * math.cos(theta), dt * math.sin(theta), 0],
+                   [0, 0, 0, 0, dt]])
+    for row in range(0, anchor):
+        Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0, 0]])))
+    # print("HJacobian return: ", Jacob)
+    return Jacob
+
+
+def hx_AngularV(x, anchor=1):
+    """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
+    """
+    dt = .1
+    trans_x = dt * x[3, 0] * math.cos(x[2, 0])
+    trans_y = dt * x[3, 0] * math.sin(x[2, 0])
+    rot_z = dt * x[4, 0]
+    h = array([trans_x, trans_y, rot_z]).reshape((-1, 1))
+    for row in range(0, anchor):
+        dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
+        thres_dis = 0.5
+        if dis > thres_dis:
+            # RSSI Regression Model
+            rssi = ALPHA * math.log10(dis) - BETA
+        else:
+            rssi = ALPHA * math.log10(thres_dis) - BETA
+
+        # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
+        h = np.vstack((h, array([[rssi]])))
+    # print("hx return shape: ", h.shape)
+    return h
+
+
 
 class PoseVel(object):
     """ Simulates the Path in 2D.
