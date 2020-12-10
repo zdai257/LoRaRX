@@ -124,6 +124,13 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             measure_noise = np.hstack((measure_noise, np.array([SIGMA ** 2])))
         self.my_kf.R = np.diag(measure_noise)
 
+    def smoother(self):
+        if len(self.rssi_list) > 3:
+            ave_rssi = 0.6 * self.rssi_list[-1] + 0.25*self.rssi_list[-2] + 0.15*self.rssi_list[-3]
+        else:
+            ave_rssi = self.rssi_list[-1]
+        return ave_rssi
+
     def rt_run(self, gap):
 
         for g in range(gap, 0, -1):
@@ -134,7 +141,7 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # Add ROT_Z, convert from 'degree' to 'Rad', as measurement!
             final_xyZ.append(final_pose[5] * math.pi/180)
             # Populate ONE Rssi for a 'gap' of Poses
-            final_xyZ.append(float(self.rssi_list[-1]))
+            final_xyZ.append(float(self.smoother()))
             z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
             #print("Measurement ROT_Z:", z[2, 0])
 
@@ -143,7 +150,7 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             self.my_kf.R[0, 0] = 4.0  # self.sigma_list[-g][0]*1000
             self.my_kf.R[1, 1] = 4.0  # self.sigma_list[-g][1]*1000
             self.my_kf.R[2, 2] = .01  # self.sigma_list[-g][5]**2 # Sigma of ROT_Z
-            self.my_kf.R[3, 3] = 300.0  # 5*SIGMA**2
+            self.my_kf.R[3, 3] = 200.0  # 5*SIGMA**2
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(5) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]),
                                             self.dt * math.cos(self.my_kf.x[2, 0]), 0],
@@ -205,12 +212,10 @@ if __name__=="__main__":
                 time.sleep(.001)
                
             ekf.fig2.savefig("replay_rx.png")
-            plt.show()
             '''
             ekf.reset_view()
             ekf.set_view()
             '''
-    
     
     
     

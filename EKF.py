@@ -351,8 +351,10 @@ class EKF_Fusion():
         print("Elapsed time of EKF = ", time.time() - start_t)
         print("ABS_YAW: ", self.abs_yaw)
         print("State X:\n", self.my_kf.x)
+
         if self.visual:
             self.rt_show()
+
         
         
     def rt_run(self, gap):
@@ -391,7 +393,7 @@ class EKF_Fusion():
             self.xs.append(self.my_kf.x)
             
             #print("X+:\n", self.my_kf.x)
-            
+
             #print("EKF per round takes %.6f s" % (time.time() - start_t))
         
         
@@ -461,8 +463,8 @@ class EKF_Fusion():
         self.handle_arrw.remove()
         # Remove Range Circle
         self.cir1.remove()
-        
         #self.handle_arrw_ekf.remove()
+
         self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
             self.U, self.V, self.W, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
