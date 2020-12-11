@@ -12,6 +12,7 @@ from plot_util import *
 from mpl_toolkits.mplot3d import Axes3D
 import mpl_toolkits.mplot3d.art3d as art3d
 import matplotlib.pyplot as plt
+from matplotlib import gridspec
 import matplotlib
 #matplotlib.use('agg')
 import sympy
@@ -140,6 +141,7 @@ def HJacobian_at_AngularV(x, anchor=1):
                    [0, 0, 0, 0, dt]])
     for row in range(0, anchor):
         Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0, 0]])))
+        #Jacob = np.vstack((Jacob, array([[0, 0, 0, 0, 0]])))
     # print("HJacobian return: ", Jacob)
     return Jacob
 
@@ -163,6 +165,7 @@ def hx_AngularV(x, anchor=1):
 
         # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
         h = np.vstack((h, array([[rssi]])))
+        #h = np.vstack((h, array([[0]])))
     # print("hx return shape: ", h.shape)
     return h
 
@@ -243,11 +246,15 @@ class EKF_Fusion():
         self.handle_arrw_ekf = None
         self.ax1background = None
         self.ax2background = None
-        
-        self.fig2 = plt.figure(figsize=(8, 9))
-        self.ax21 = self.fig2.add_subplot(2, 1, 1, projection='3d') #fig1.gca(projection='3d') #Axes3D(fig1)
-        self.ax22 = self.fig2.add_subplot(2, 1, 2)
+
+        self.fig2 = plt.figure(figsize=(8, 7))
+        gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
+        self.ax21 = self.fig2.add_subplot(gs[0], projection='3d')
+        self.ax22 = self.fig2.add_subplot(gs[1])
+        #self.ax21 = self.fig2.add_subplot(2, 1, 1, projection='3d') #fig1.gca(projection='3d') #Axes3D(fig1)
+        #self.ax22 = self.fig2.add_subplot(2, 1, 2)
         plt.ion()
+        plt.tight_layout()
         self.set_view()
 
         self.fig2.canvas.draw()
@@ -481,8 +488,10 @@ class EKF_Fusion():
         art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
         
         self.ax22.clear()
-        self.ax22.set_title("Real-Time LoRa Signal Strength", fontweight='bold')
-        self.ax22.set_ylabel("RSSI (dBm)")
+        self.ax22.set_facecolor('white')
+        self.ax22.grid(False)
+        self.ax22.set_title("REAL-TIME LORA RSSI", fontweight='bold', fontsize=9, pad=-2)
+        self.ax22.set_ylabel("RSSI (dBm)", labelpad=-3)
         self.ax22.plot(self.rssi_list, 'coral')
         
         if self.blit:
@@ -515,7 +524,8 @@ class EKF_Fusion():
     def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
         
         self.ax21.view_init(elev=75., azim=-75)
-        self.ax21.set_title("Real-Time Pose", fontweight='bold')
+        self.ax21.set_title("REAL-TIME TRAJECTORY", fontweight='bold', fontsize=9, y=0.1, pad=-5.0)
+        self.ax21.grid(True)
         self.ax21.set_xlabel('X Axis (m)')
         self.ax21.set_ylabel('Y Axis (m)')
         self.ax21.set_zlabel('Z Axis (m)')

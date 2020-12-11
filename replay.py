@@ -112,7 +112,7 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         self.my_kf.F = eye(5)
 
         # TWEEK PARAMS
-        self.my_kf.x = np.array([0., 0., 0., 0.01, 0.0]).reshape(-1, 1)
+        self.my_kf.x = np.array([0., 0., 0., 0.1, 0.0]).reshape(-1, 1)
         # Error Cov of Initial State
         self.my_kf.P = np.diag(np.array([0.0, 0.0, 0.0, 1.0, 0.01]))
         # Process Noise Cov
@@ -149,8 +149,8 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI
             self.my_kf.R[0, 0] = 4.0  # self.sigma_list[-g][0]*1000
             self.my_kf.R[1, 1] = 4.0  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = .01  # self.sigma_list[-g][5]**2 # Sigma of ROT_Z
-            self.my_kf.R[3, 3] = 200.0  # 5*SIGMA**2
+            self.my_kf.R[2, 2] = 0.001 # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            self.my_kf.R[3, 3] = 10*SIGMA**2
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(5) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]),
                                             self.dt * math.cos(self.my_kf.x[2, 0]), 0],
@@ -207,6 +207,7 @@ if __name__=="__main__":
                 
                 msg_list = [float(i) for i in vals]
                 msg_list.append(rssi)
+                #msg_list.append(0)
                 ekf.new_measure(*msg_list)
                 
                 time.sleep(.001)
