@@ -146,11 +146,12 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             #print("Measurement ROT_Z:", z[2, 0])
 
             # Refresh Measurement noise R
-            # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI
+            # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI; Tip3: small noise for rot_z
             self.my_kf.R[0, 0] = 4.0  # self.sigma_list[-g][0]*1000
             self.my_kf.R[1, 1] = 4.0  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = 0.001 # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            self.my_kf.R[2, 2] = 0.0005 # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             self.my_kf.R[3, 3] = 10*SIGMA**2
+
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(5) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]),
                                             self.dt * math.cos(self.my_kf.x[2, 0]), 0],
@@ -166,11 +167,46 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
 
             # UPDATE
             self.my_kf.update(z, HJacobian_at_AngularV, hx_AngularV, args=(self.anchor), hx_args=(self.anchor))
-
+            '''
+            # IMPOSE CONSTRAINTS
+            self.my_kf.x, self.my_kf.P = self.constraints()
+            # print("Constraint State = ", self.my_kf.x)
+            # print("Constraint Error Cov = ", self.my_kf.P)
+            '''
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
             # print("X+:\n", self.my_kf.x)
             # print("EKF per round takes %.6f s" % (time.time() - start_t))
+
+    def constraints(self):
+        A = np.diag(np.array([0, 0, 0, 1., 1.]))
+        A_1 = np.linalg.pinv(A)
+        b = np.array([0, 0, 0, 3., 1*math.pi/2]).reshape((-1, 1))
+        x_k = self.my_kf.x
+        Pk = self.my_kf.P
+        # Constrained State
+        AWA = np.dot(A, Pk).dot(A.transpose())
+        AWA_1 = np.linalg.pinv(AWA)
+        x_pk = x_k - np.dot(Pk, A.transpose()).dot(AWA_1).dot(np.dot(A, x_k) - b)
+        '''
+        Y = np.dot(Pk, np.eye(5)).dot(A_1)
+        x_pk = x_k - np.dot(Y, np.dot(A, x_k) - b)
+        '''
+        s = x_pk - x_k
+        step = 0.01
+        for lamda in range(1, 101):
+            x_pk0 = x_k + step*lamda*s
+            if x_pk0[3, 0] <= b[3, 0] and x_pk0[4, 0] <= b[4, 0]:
+                continue
+            else:
+                x_pk0 = x_k + step*(lamda-1)*s
+                print(lamda)
+                break
+
+        x_pk = x_pk0
+        Pk_p = np.dot(x_pk, x_pk.reshape((1, -1)))
+        return x_pk, Pk_p
+
 
     def rt_show(self):
         super(EKF_Fusion_MultiRX_AngularV, self).rt_show(t_limit=100.)
