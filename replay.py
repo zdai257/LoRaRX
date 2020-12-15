@@ -12,8 +12,8 @@ class EKF_Fusion_MultiRX(EKF_Fusion):
         if type(anchor) != int or anchor < 1:
             print("Number of anchor should be integer greater than 0")
             raise TypeError
-        self.anchor = anchor
-        super().__init__(dim_z=2+self.anchor, dt=dt, visual=visual)
+
+        super().__init__(anchor=anchor, dim_z=2+anchor, dt=dt, visual=visual)
         # TWEEK PARAMS
         self.my_kf.x = np.array([0., 0., 0., 0.1]).reshape(-1, 1)
         self.my_kf.P = np.diag(np.array([1., 1., 10., 20.]))
@@ -39,8 +39,8 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
         if type(anchor) != int or anchor < 1:
             print("Number of anchor should be integer greater than 0")
             raise TypeError
-        self.anchor = anchor
-        super().__init__(dim_z=3+self.anchor, dt=dt, visual=visual)
+
+        super().__init__(anchor=anchor, dim_z=3+anchor, dt=dt, visual=visual)
         # TWEEK PARAMS
         self.my_kf.x = np.array([1., -1., 0., 0.2]).reshape(-1, 1)
         # Process Noise Cov
@@ -106,8 +106,9 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         if type(anchor) != int or anchor < 1:
             print("Number of anchor should be integer greater than 0")
             raise TypeError
-        self.anchor = anchor
-        super().__init__(dim_x=5, dim_z=3 + self.anchor, dt=dt, visual=visual)
+
+        super().__init__(anchor=anchor, dim_x=5, dim_z=3 + anchor, dt=dt, visual=visual)
+
         # State Transition Martrix: F
         self.my_kf.F = eye(5)
 
@@ -124,12 +125,14 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             measure_noise = np.hstack((measure_noise, np.array([SIGMA ** 2])))
         self.my_kf.R = np.diag(measure_noise)
 
-    def smoother(self):
-        if len(self.rssi_list) > 3:
-            ave_rssi = 0.6 * self.rssi_list[-1] + 0.25*self.rssi_list[-2] + 0.15*self.rssi_list[-3]
+    def smoother(self, lst):
+        if len(lst) > 3:
+            ave_rssi = 0.6 * lst[-1] + 0.25*lst[-2] + 0.15*lst[-3]
+        elif len(lst) == 0:
+            return []
         else:
-            ave_rssi = self.rssi_list[-1]
-        return ave_rssi
+            ave_rssi = lst[-1]
+        return float(ave_rssi)
 
     def rt_run(self, gap):
 
@@ -141,7 +144,12 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # Add ROT_Z, convert from 'degree' to 'Rad', as measurement!
             final_xyZ.append(final_pose[5] * math.pi/180)
             # Populate ONE Rssi for a 'gap' of Poses
-            final_xyZ.append(float(self.smoother()))
+            final_xyZ.append(self.smoother(self.rssi_list))
+            if self.rssi_list2:
+                final_xyZ.append(self.smoother(self.rssi_list2))
+            if self.rssi_list3:
+                final_xyZ.append(self.smoother(self.rssi_list3))
+
             z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
             #print("Measurement ROT_Z:", z[2, 0])
 
@@ -150,7 +158,8 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             self.my_kf.R[0, 0] = 4.0  # self.sigma_list[-g][0]*1000
             self.my_kf.R[1, 1] = 4.0  # self.sigma_list[-g][1]*1000
             self.my_kf.R[2, 2] = 0.0005 # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
-            self.my_kf.R[3, 3] = 10*SIGMA**2
+            for rowcol in range(3, 3+self.anchor):
+                self.my_kf.R[rowcol, rowcol] = 10*SIGMA**2
 
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(5) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]),
@@ -213,46 +222,68 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         pass
 
 
-        
+def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0.2):
+    rssi_x = np.arange(0, data_len).tolist()
+    rssi_y = [Amp * (math.sin(x / (data_len / period) * 2 * math.pi + phase) + noiseAmp * 2 * (np.random.rand() - 1)) + mean for x in rssi_x]
+    '''
+    fig3 = plt.figure(3)
+    ax31 = fig3.add_subplot(1, 1, 1)
+    ax31.plot(rssi_x, rssi_y)
+    '''
+    return rssi_y
+
 
 if __name__=="__main__":
     
-    ekf = EKF_Fusion_MultiRX_AngularV(anchor=1)
-    # TODO replay the logged LoRa RX messages
-    dt = 0.1
-    # SIMULATION
-    '''
-    T = 10.
-    for i in range(int(T / dt)):
-        ekf.sim_run()
-        time.sleep(.1)
-    ekf.sim_show()
-    '''
-    
+    ekf = EKF_Fusion_MultiRX_AngularV(anchor=3)
+    # TODO Sync Multiple RX RSSIs and Replay
+
+
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
             with open('TEST/' + filename, "r") as f:
                 recv_list = f.readlines()
-                
+
+            # Add synthetic RSSIs
+            data_len = len(recv_list)
+            if 1:
+                rssi_y2 = synthetic_rssi(data_len=data_len, period=1.)
+                rssi_y3 = synthetic_rssi(data_len=data_len, period=1., Amp=15, phase=-math.pi/2, noiseAmp=0.3, mean=-45)
+            else:
+                rssi_y2, rssi_y3 = [], []
+
+            rssi_idx = 0
+
             for item in recv_list:
+                rssi_list = []
+
                 parts = item.split(';')
                 t = parts[0]
                 msgs = parts[1]
-                vals = msgs.split(',')[:-1]
-                rssi = int(parts[2])
+                vals = msgs.split(',')
+                rssi1 = int(parts[2])
+                # Append RXs measurements
+                rssi_list.append(rssi1)
+                if rssi_y2:
+                    rssi_list.append(rssi_y2[rssi_idx])
+                if rssi_y3:
+                    rssi_list.append(rssi_y3[rssi_idx])
+                rssi_idx += 1
                 
                 msg_list = [float(i) for i in vals]
-                msg_list.append(rssi)
-                #msg_list.append(0)
+                msg_list.extend(rssi_list)
+
                 ekf.new_measure(*msg_list)
-                
+
+                #plt.pause(0.01)
                 time.sleep(.001)
                
             ekf.fig2.savefig("replay_rx.png")
-            '''
+
+    '''
             ekf.reset_view()
             ekf.set_view()
-            '''
+    '''
     
     
     

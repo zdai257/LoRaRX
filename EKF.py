@@ -15,14 +15,12 @@ import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import matplotlib
 #matplotlib.use('agg')
-import sympy
-from sympy import Matrix, symbols
 
 
 # LoRa RX Coordinates
 R1 = np.array([[0., 0., 0.],
-               [5., 0., 0.],
-               [0., 4., 0.],
+               [15., 5., 0.],
+               [30., -22., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
 # Path Loss Model params
@@ -218,8 +216,9 @@ class PoseVel(object):
 
 
 class EKF_Fusion():
-    def __init__(self, dt=0.1, dim_x=4, dim_z=3, blit=True, visual=False):
+    def __init__(self, dt=0.1, anchor=1, dim_x=4, dim_z=3, blit=True, visual=False):
         self.visual = visual
+        self.anchor = anchor
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
         [[1., 0, 0, 0],
@@ -234,7 +233,7 @@ class EKF_Fusion():
         self.final_list = []
         self.sigma_list = []
         self.angle = 0
-        self.rssi_list = []
+        self.rssi_list, self.rssi_list2, self.rssi_list3 = [], [], []
         self.vec = np.array([[0], [1], [0], [0]], dtype=float)
         self.odom_quat = self.vec
         
@@ -300,19 +299,23 @@ class EKF_Fusion():
         self.abs_yaw = 0
         
         
-    def new_measure(self, *args):
+    def new_measure(self, *args, **kwargs):
         start_t = time.time()
-        len_pose=12
+        len_pose = 12
         gap = 0
         msg_list = []
-        # First (args) is Object!?
         for arg in args:
             msg_list.append(arg)
-            #print(type(arg))
-        rssi = msg_list[-1]
-        msg_list = msg_list[:-1]
-        self.rssi_list.append(rssi)
-        #print(len(msg_list))
+        print(len(msg_list))
+        rssis = msg_list[-self.anchor:]
+        print(rssis)
+        msg_list = msg_list[:-self.anchor]
+        self.rssi_list.append(rssis[0])
+        if self.anchor >= 2:
+            self.rssi_list2.append(rssis[1])
+        if self.anchor >= 3:
+            self.rssi_list3.append(rssis[2])
+
         for idx in range(0, len(msg_list), len_pose):
             final_pose = msg_list[idx:idx+6]
             sigma_pose = msg_list[idx+6:idx+12]
@@ -375,6 +378,8 @@ class EKF_Fusion():
             
             # Populate ONE Rssi for a 'gap' of Poses
             final_xy.append(float(self.rssi_list[-1]))
+            final_xy.append(float(self.rssi_list2[-1]))
+            final_xy.append(float(self.rssi_list3[-1]))
             
             z = np.asarray(final_xy, dtype=float).reshape(-1, 1)
             #print("Measurement:\n", z)
@@ -471,7 +476,10 @@ class EKF_Fusion():
         self.handle_arrw.remove()
         # Remove Range Circle
         self.cir1.remove()
-        #self.handle_arrw_ekf.remove()
+        if self.rssi_list2:
+            self.cir2.remove()
+        if self.rssi_list3:
+            self.cir3.remove()
 
         self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
@@ -487,13 +495,29 @@ class EKF_Fusion():
         circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
         self.cir1 = self.ax21.add_patch(circle1)
         art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
+        if self.rssi_list2:
+            radius = 10 ** ((self.rssi_list2[-1] + BETA) / ALPHA)
+            circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
+            self.cir2 = self.ax21.add_patch(circle2)
+            art3d.pathpatch_2d_to_3d(circle2, z=0, zdir="z")
+        if self.rssi_list3:
+            radius = 10 ** ((self.rssi_list3[-1] + BETA) / ALPHA)
+            circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
+            self.cir3 = self.ax21.add_patch(circle3)
+            art3d.pathpatch_2d_to_3d(circle3, z=0, zdir="z")
         
         self.ax22.clear()
         self.ax22.set_facecolor('white')
         self.ax22.grid(False)
         self.ax22.set_title("REAL-TIME LORA RSSI", fontweight='bold', fontsize=9, pad=-2)
         self.ax22.set_ylabel("RSSI (dBm)", labelpad=-3)
-        self.ax22.plot(self.rssi_list, 'coral')
+        #self.ax22.set_ylim(-90, -10)
+        self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
+        if self.rssi_list2:
+            self.ax22.plot(self.rssi_list2, 'b', alpha=.5, label='RX 2')
+        if self.rssi_list3:
+            self.ax22.plot(self.rssi_list3, 'cyan', alpha=.5, label='RX 3')
+        self.ax22.legend(loc='lower left')
         
         if self.blit:
             # restore background
@@ -541,17 +565,28 @@ class EKF_Fusion():
         self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         self.ax21.legend(loc='upper left')
+
+        # Show RXs
+        for anc in range(0, self.anchor):
+            self.ax21.scatter(R1[int(anc), 0], R1[int(anc), 1], R1[int(anc), 2], marker='1', s=100, color='magenta')
+
         # Init Range Display
         if not self.rssi_list:
-            radius = 1
+            radius = .5
         else:
             radius = self.rssi_list[-1]
         circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.2, linewidth=0.5)
         self.cir1 = self.ax21.add_artist(circle1)
+        circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.2, linewidth=0.5)
+        self.cir2 = self.ax21.add_artist(circle2)
+        circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.2, linewidth=0.5)
+        self.cir3 = self.ax21.add_artist(circle3)
         
         
     def reset_view(self):
         self.rssi_list = []
+        self.rssi_list2 = []
+        self.rssi_list3 = []
         self.ax21.clear()
 
 
