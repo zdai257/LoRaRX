@@ -10,10 +10,10 @@ import struct
 import string
 import math
 from EKF import EKF_Fusion
-from replay import EKF_Fusion_MultiRX, EKF_Fusion_MultiRX_ZYaw
+from replay import EKF_Fusion_MultiRX, EKF_Fusion_MultiRX_ZYaw, EKF_Fusion_MultiRX_AngularV
 
 
-ekf = EKF_Fusion_MultiRX_ZYaw(anchor=1, dt=0.1, visual=False)
+ekf = EKF_Fusion_MultiRX_AngularV(anchor=1, dt=0.1, visual=False)
 
 def UtcNow():
     now = datetime.datetime.utcnow()
@@ -139,12 +139,8 @@ try :
                     #print("Received Data Length = ", msg_len)
                     msg = []
                     #print(r_buff)
-                    '''
-                    for id in range(0, 240, 4):
-                        msg0 = r_buff[id:id+4]
-                        msg.append(msg0)
-                    print(msg)
-                    '''
+                    
+
                     # Parse Msg with UtcNow() at Transmitter
                     buff_len += msg_len
                     print("%d bytes in buffer" % buff_len)

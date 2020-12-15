@@ -78,7 +78,7 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
             self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
                                   [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],
                                   [0, 0, 0, 0],
-                                  [0, 0, 0, 0]]) * self.dt
+                                  [0, 0, 0, 0]])
 
             #self.my_kf.F = eye(4)
 
@@ -142,7 +142,7 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             final_pose = self.final_list[-g]
             final_xyZ = final_pose[:2]
             # Add ROT_Z, convert from 'degree' to 'Rad', as measurement!
-            final_xyZ.append(final_pose[5] * math.pi/180)
+            final_xyZ.append(final_pose[-1] * math.pi/180)
             # Populate ONE Rssi for a 'gap' of Poses
             final_xyZ.append(self.smoother(self.rssi_list))
             if self.rssi_list2:
@@ -152,6 +152,7 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
 
             z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
             #print("Measurement ROT_Z:", z[2, 0])
+            # TODO Add data integraty check: X+ value explodes
 
             # Refresh Measurement noise R
             # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI; Tip3: small noise for rot_z
@@ -166,13 +167,13 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
                                             self.dt * math.cos(self.my_kf.x[2, 0]), 0],
                                            [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]),
                                             self.dt * math.sin(self.my_kf.x[2, 0]), 0],
-                                           [0, 0, 0, 0, 1],
+                                           [0, 0, 0, 0, self.dt],
                                            [0, 0, 0, 0, 0],
-                                           [0, 0, 0, 0, 0]]) * self.dt
+                                           [0, 0, 0, 0, 0]]) #Fix a BUG:self.dt multiplied twice
 
             # PREDICTION
             self.my_kf.predict()
-            # print("X-:\n", self.my_kf.x)
+            #print("X-:\n", self.my_kf.x)
 
             # UPDATE
             self.my_kf.update(z, HJacobian_at_AngularV, hx_AngularV, args=(self.anchor), hx_args=(self.anchor))
@@ -184,7 +185,7 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             '''
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
-            # print("X+:\n", self.my_kf.x)
+            #print("X+:\n", self.my_kf.x)
             # print("EKF per round takes %.6f s" % (time.time() - start_t))
 
     def constraints(self):

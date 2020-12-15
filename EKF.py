@@ -129,15 +129,16 @@ def HJacobian_at_AngularV(x, anchor=1):
     theta = x[2, 0]
     V = x[3, 0]
     W = x[4, 0]
-    denom = (X - R1[anchor - 1, 0]) ** 2 + (Y - R1[anchor - 1, 1]) ** 2
-    if denom < 0.25:
-        denom = 0.25
+    # Fix a BUG: denom is variable
     a = ALPHA * math.log10(math.e)
     # HJabobian in (4, 5) if ONE LoRa RX; (6, 5) if THREE LoRa RXs available
     Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta), 0],
                    [0, 0, dt * V * math.cos(theta), dt * math.sin(theta), 0],
                    [0, 0, 0, 0, dt]])
     for row in range(0, anchor):
+        denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
+        if denom < 0.25:
+            denom = 0.25
         Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0, 0]])))
         #Jacob = np.vstack((Jacob, array([[0, 0, 0, 0, 0]])))
     # print("HJacobian return: ", Jacob)
@@ -306,9 +307,9 @@ class EKF_Fusion():
         msg_list = []
         for arg in args:
             msg_list.append(arg)
-        print(len(msg_list))
+        #print(len(msg_list))
         rssis = msg_list[-self.anchor:]
-        print(rssis)
+        #print(rssis)
         msg_list = msg_list[:-self.anchor]
         self.rssi_list.append(rssis[0])
         if self.anchor >= 2:
@@ -378,28 +379,30 @@ class EKF_Fusion():
             
             # Populate ONE Rssi for a 'gap' of Poses
             final_xy.append(float(self.rssi_list[-1]))
-            final_xy.append(float(self.rssi_list2[-1]))
-            final_xy.append(float(self.rssi_list3[-1]))
+            if self.rssi_list2:
+                final_xy.append(float(self.rssi_list2[-1]))
+            if self.rssi_list3:
+                final_xy.append(float(self.rssi_list3[-1]))
             
             z = np.asarray(final_xy, dtype=float).reshape(-1, 1)
             #print("Measurement:\n", z)
             # Refresh Measurement noise R
+            '''
             for j in range(0, 2):
                 self.my_kf.R[j, j] = self.sigma_list[-g][j]**2 # Sigma stands for Standard Deviation
-                
+            '''
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
                                   [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],
                                   [0, 0, 0, 0],
-                                  [0, 0, 0, 0]]) * self.dt
+                                  [0, 0, 0, 0]])
             
             # PREDICTION
             self.my_kf.predict()
             #print("X-:\n", self.my_kf.x)
             
             # UPDATE
-            anchor = 1
-            self.my_kf.update(z, HJacobian_at, hx, args=(anchor), hx_args=(anchor))
+            self.my_kf.update(z, HJacobian_at, hx, args=(self.anchor), hx_args=(self.anchor))
             
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
