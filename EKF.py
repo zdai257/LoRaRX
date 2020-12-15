@@ -37,15 +37,15 @@ def HJacobian_at(x, anchor=1):
     #Z = x[2, 0]
     theta = x[2, 0]
     V = x[3, 0]
-    denom = (X - R1[anchor-1, 0])**2 + (Y - R1[anchor-1, 1])**2
-    if denom < 0.25:
-        denom = 0.25
     a = ALPHA*math.log10(math.e)
     # HJabobian in (3, 4) if ONE LoRa RX; (5, 4) if THREE LoRa RXs available
     Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
                                      [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)]])
     
     for row in range(0, anchor):
+        denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
+        if denom < 1.:
+            denom = 1.
         Jacob = np.vstack((Jacob, array([[a*(X - R1[row, 0])/denom, a*(Y - R1[row, 1])/denom, 0, 0]])))
     
     #print("HJacobian return: ", Jacob)
@@ -61,13 +61,13 @@ def hx(x, anchor=1):
     h = array([trans_x, trans_y]).reshape((-1, 1))
     for row in range(0, anchor):
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
-        thres_dis = 0.5
+        thres_dis = 1.
         if dis > thres_dis:
             # RSSI Regression Model
-            rssi = ALPHA*math.log10(dis) - BETA
+            rssi = ALPHA*math.log10(dis) + BETA
             
         else:
-            rssi = ALPHA*math.log10(thres_dis) - BETA
+            rssi = ALPHA*math.log10(thres_dis) + BETA
         
         # Measurement comprises (X, Y, RSSIs)
         h = np.vstack((h, array([[rssi]])))
@@ -83,15 +83,15 @@ def HJacobian_at_ZYaw(x, anchor=1):
     # Z = x[2, 0]
     theta = x[2, 0]
     V = x[3, 0]
-    denom = (X - R1[anchor - 1, 0]) ** 2 + (Y - R1[anchor - 1, 1]) ** 2
-    if denom < 0.25:
-        denom = 0.25
     a = ALPHA * math.log10(math.e)
     # HJabobian in (4, 4) if ONE LoRa RX; (6, 4) if THREE LoRa RXs available
     Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta)],
                    [0, 0, dt * V * math.cos(theta), dt * math.sin(theta)],
                    [0, 0, 1, 0]])
     for row in range(0, anchor):
+        denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
+        if denom < 1.:
+            denom = 1.
         Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0]])))
     # print("HJacobian return: ", Jacob)
     return Jacob
@@ -107,12 +107,12 @@ def hx_ZYaw(x, anchor=1):
     h = array([trans_x, trans_y, abs_yaw]).reshape((-1, 1))
     for row in range(0, anchor):
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
-        thres_dis = 0.5
+        thres_dis = 1.
         if dis > thres_dis:
             # RSSI Regression Model
-            rssi = ALPHA * math.log10(dis) - BETA
+            rssi = ALPHA * math.log10(dis) + BETA
         else:
-            rssi = ALPHA * math.log10(thres_dis) - BETA
+            rssi = ALPHA * math.log10(thres_dis) + BETA
 
         # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
         h = np.vstack((h, array([[rssi]])))
@@ -137,8 +137,8 @@ def HJacobian_at_AngularV(x, anchor=1):
                    [0, 0, 0, 0, dt]])
     for row in range(0, anchor):
         denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
-        if denom < 0.25:
-            denom = 0.25
+        if denom < 1.:
+            denom = 1.
         Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0, 0]])))
         #Jacob = np.vstack((Jacob, array([[0, 0, 0, 0, 0]])))
     # print("HJacobian return: ", Jacob)
@@ -155,12 +155,12 @@ def hx_AngularV(x, anchor=1):
     h = array([trans_x, trans_y, rot_z]).reshape((-1, 1))
     for row in range(0, anchor):
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
-        thres_dis = 0.5
+        thres_dis = 1.
         if dis > thres_dis:
             # RSSI Regression Model
-            rssi = ALPHA * math.log10(dis) - BETA
+            rssi = ALPHA * math.log10(dis) + BETA
         else:
-            rssi = ALPHA * math.log10(thres_dis) - BETA
+            rssi = ALPHA * math.log10(thres_dis) + BETA
 
         # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
         h = np.vstack((h, array([[rssi]])))
@@ -354,15 +354,15 @@ class EKF_Fusion():
         
         self.path.append([abs_pred_transform[0, 3], abs_pred_transform[1, 3], 0])
         
-        print("Elapsed time Pose2TrfMtx = ", time.time() - start_t)
+        print("Elapsed time PoseTransform = ", time.time() - start_t)
         start_t = time.time()
         
         # Trigger EKF
         self.rt_run(gap)
         print("Elapsed time of EKF = ", time.time() - start_t)
-        print("ABS_YAW: ", self.abs_yaw)
+        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw, self.abs_yaw-2*math.pi, self.abs_yaw+2*math.pi))
         print("State X:\n", self.my_kf.x)
-
+        print("")
         if self.visual:
             self.rt_show()
 

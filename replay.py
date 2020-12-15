@@ -113,11 +113,11 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         self.my_kf.F = eye(5)
 
         # TWEEK PARAMS
-        self.my_kf.x = np.array([0., 0., 0., 0.1, 0.0]).reshape(-1, 1)
+        self.my_kf.x = np.array([1.0, -0.5, 0., 0.1, 0.0]).reshape(-1, 1)
         # Error Cov of Initial State
-        self.my_kf.P = np.diag(np.array([0.0, 0.0, 0.0, 1.0, 0.01]))
+        self.my_kf.P = np.diag(np.array([4.0, 4.0, 0.1, 1.0, 0.01]))
         # Process Noise Cov
-        self.my_kf.Q = np.diag(np.array([0.0, 0.0, 0.0, 0.01, .0001]))
+        self.my_kf.Q = np.diag(np.array([0.0, 0.0, 0.0, 0.001, .0001]))
 
         # Initial R doesn't matter; it is updated @run_rt
         measure_noise = np.array([1. ** 2, 1. ** 2, .1 ** 2, SIGMA ** 2])
@@ -155,12 +155,12 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # TODO Add data integraty check: X+ value explodes
 
             # Refresh Measurement noise R
-            # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI; Tip3: small noise for rot_z
-            self.my_kf.R[0, 0] = 4.0  # self.sigma_list[-g][0]*1000
-            self.my_kf.R[1, 1] = 4.0  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = 0.0005 # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            # Tip1: (x, y) shouldn't be large; Tip2: large noise for RSSI; Tip3: small noise for rot_z
+            self.my_kf.R[0, 0] = 0.19  # self.sigma_list[-g][0]*1000
+            self.my_kf.R[1, 1] = 0.19  # self.sigma_list[-g][1]*1000
+            self.my_kf.R[2, 2] = 0.0001 # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3+self.anchor):
-                self.my_kf.R[rowcol, rowcol] = 10*SIGMA**2
+                self.my_kf.R[rowcol, rowcol] = 5*SIGMA**2
 
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(5) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]),
@@ -236,7 +236,7 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
     
-    ekf = EKF_Fusion_MultiRX_AngularV(anchor=3)
+    ekf = EKF_Fusion_MultiRX_AngularV(anchor=1)
     # TODO Sync Multiple RX RSSIs and Replay
 
 
@@ -247,7 +247,7 @@ if __name__=="__main__":
 
             # Add synthetic RSSIs
             data_len = len(recv_list)
-            if 1:
+            if 0:
                 rssi_y2 = synthetic_rssi(data_len=data_len, period=1.)
                 rssi_y3 = synthetic_rssi(data_len=data_len, period=1., Amp=15, phase=-math.pi/2, noiseAmp=0.3, mean=-45)
             else:
