@@ -151,16 +151,17 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
                 final_xyZ.append(self.smoother(self.rssi_list3))
 
             z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
-            #print("Measurement ROT_Z:", z[2, 0])
+            #print("Measurement z: ", z)
             # TODO Add data integraty check: X+ value explodes
 
             # Refresh Measurement noise R
-            # Tip1: (x, y) shouldn't be large; Tip2: large noise for RSSI; Tip3: small noise for rot_z
-            self.my_kf.R[0, 0] = 0.19  # self.sigma_list[-g][0]*1000
-            self.my_kf.R[1, 1] = 0.19  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = 0.0001 # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            # Tip1: TRANS_X uncertainty larger than TRANS_Y
+            # Tip2: Large ROT_Z noise loses abs_yaw; Small ROT_Z noise loses track
+            self.my_kf.R[0, 0] = 0.04  # self.sigma_list[-g][0]*1000
+            self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
+            self.my_kf.R[2, 2] = 0.0001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3+self.anchor):
-                self.my_kf.R[rowcol, rowcol] = 5*SIGMA**2
+                self.my_kf.R[rowcol, rowcol] = 4 * SIGMA**2
 
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(5) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]),
@@ -248,8 +249,8 @@ if __name__=="__main__":
             # Add synthetic RSSIs
             data_len = len(recv_list)
             if 0:
-                rssi_y2 = synthetic_rssi(data_len=data_len, period=1.)
-                rssi_y3 = synthetic_rssi(data_len=data_len, period=1., Amp=15, phase=-math.pi/2, noiseAmp=0.3, mean=-45)
+                rssi_y2 = synthetic_rssi(data_len=data_len, period=1)
+                rssi_y3 = synthetic_rssi(data_len=data_len, period=1, Amp=15, phase=-math.pi/2, noiseAmp=0.3, mean=-45)
             else:
                 rssi_y2, rssi_y3 = [], []
 

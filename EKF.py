@@ -24,7 +24,7 @@ R1 = np.array([[0., 0., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
 # Path Loss Model params
-ALPHA = -45#-28.57
+ALPHA = -45.712  # -28.57 * 1.6
 BETA = -5.06
 SIGMA = 4.887
 
@@ -132,8 +132,8 @@ def HJacobian_at_AngularV(x, anchor=1):
     # Fix a BUG: denom is variable
     a = ALPHA * math.log10(math.e)
     # HJabobian in (4, 5) if ONE LoRa RX; (6, 5) if THREE LoRa RXs available
-    Jacob = array([[0, 0, -dt * V * math.sin(theta), dt * math.cos(theta), 0],
-                   [0, 0, dt * V * math.cos(theta), dt * math.sin(theta), 0],
+    Jacob = array([[0, 0, 0, dt * math.cos(W), -dt * V * math.sin(W)],
+                   [0, 0, 0, dt * math.sin(W), dt * V * math.cos(W)],
                    [0, 0, 0, 0, dt]])
     for row in range(0, anchor):
         denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
@@ -149,8 +149,8 @@ def hx_AngularV(x, anchor=1):
     """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
     """
     dt = .1
-    trans_x = dt * x[3, 0] * math.cos(x[2, 0])
-    trans_y = dt * x[3, 0] * math.sin(x[2, 0])
+    trans_x = dt * x[3, 0] * math.cos(x[4, 0])
+    trans_y = dt * x[3, 0] * math.sin(x[4, 0])
     rot_z = dt * x[4, 0]
     h = array([trans_x, trans_y, rot_z]).reshape((-1, 1))
     for row in range(0, anchor):
@@ -360,9 +360,9 @@ class EKF_Fusion():
         # Trigger EKF
         self.rt_run(gap)
         print("Elapsed time of EKF = ", time.time() - start_t)
-        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw, self.abs_yaw-2*math.pi, self.abs_yaw+2*math.pi))
+        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw, self.abs_yaw-2*math.pi, self.abs_yaw-4*math.pi))
         print("State X:\n", self.my_kf.x)
-        print("")
+
         if self.visual:
             self.rt_show()
 
@@ -491,7 +491,7 @@ class EKF_Fusion():
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        self.ax21.auto_scale_xyz([-2, 18], [-18, 2], [-1, 1])
+        self.ax21.auto_scale_xyz([-12, 18], [-18, 12], [-1, 3])
 
         # Plot Range
         radius = 10**((self.rssi_list[-1] + BETA)/ALPHA)
