@@ -103,8 +103,8 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
 
 class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
     def __init__(self, anchor, dt=0.1, visual=True):
-        if type(anchor) != int or anchor < 1:
-            print("Number of anchor should be integer greater than 0")
+        if type(anchor) != int or anchor < 0:
+            print("Number of anchor should be integer no less than 0")
             raise TypeError
 
         super().__init__(anchor=anchor, dim_x=5, dim_z=3 + anchor, dt=dt, visual=visual)
@@ -120,8 +120,8 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         self.my_kf.Q = np.diag(np.array([0.0, 0.0, 0.0, 0.001, .0001]))
 
         # Initial R doesn't matter; it is updated @run_rt
-        measure_noise = np.array([1. ** 2, 1. ** 2, .1 ** 2, SIGMA ** 2])
-        for dim in range(1, self.anchor):
+        measure_noise = np.array([1. ** 2, 1. ** 2, .1 ** 2])
+        for dim in range(0, self.anchor):
             measure_noise = np.hstack((measure_noise, np.array([SIGMA ** 2])))
         self.my_kf.R = np.diag(measure_noise)
 
@@ -144,7 +144,8 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # Add ROT_Z, convert from 'degree' to 'Rad', as measurement!
             final_xyZ.append(final_pose[-1] * math.pi/180)
             # Populate ONE Rssi for a 'gap' of Poses
-            final_xyZ.append(self.smoother(self.rssi_list))
+            if self.anchor:
+                final_xyZ.append(self.smoother(self.rssi_list))
             if self.rssi_list2:
                 final_xyZ.append(self.smoother(self.rssi_list2))
             if self.rssi_list3:
@@ -157,9 +158,9 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # Refresh Measurement noise R
             # Tip1: TRANS_X uncertainty larger than TRANS_Y
             # Tip2: Large ROT_Z noise loses abs_yaw; Small ROT_Z noise loses track
-            self.my_kf.R[0, 0] = 0.04  # self.sigma_list[-g][0]*1000
-            self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = 0.0001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            self.my_kf.R[0, 0] = 0.0000004  # self.sigma_list[-g][0]*1000
+            self.my_kf.R[1, 1] = 0.00000001  # self.sigma_list[-g][1]*1000
+            self.my_kf.R[2, 2] = 0.0000000000001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 4 * SIGMA**2
 
@@ -237,7 +238,7 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
     
-    ekf = EKF_Fusion_MultiRX_AngularV(anchor=1)
+    ekf = EKF_Fusion_MultiRX_AngularV(anchor=0)
     # TODO Sync Multiple RX RSSIs and Replay
 
 
@@ -273,7 +274,8 @@ if __name__=="__main__":
                 rssi_idx += 1
                 
                 msg_list = [float(i) for i in vals]
-                msg_list.extend(rssi_list)
+                if ekf.anchor:
+                    msg_list.extend(rssi_list)
 
                 ekf.new_measure(*msg_list)
 

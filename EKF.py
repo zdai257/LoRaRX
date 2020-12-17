@@ -305,13 +305,14 @@ class EKF_Fusion():
         len_pose = 12
         gap = 0
         msg_list = []
+        rssis = []
         for arg in args:
             msg_list.append(arg)
-        #print(len(msg_list))
-        rssis = msg_list[-self.anchor:]
-        #print(rssis)
-        msg_list = msg_list[:-self.anchor]
-        self.rssi_list.append(rssis[0])
+        if self.anchor:
+            rssis = msg_list[-self.anchor:]
+            msg_list = msg_list[:-self.anchor]
+
+        self.rssi_list.extend(rssis)
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:
@@ -378,7 +379,8 @@ class EKF_Fusion():
             #print(final_xy)
             
             # Populate ONE Rssi for a 'gap' of Poses
-            final_xy.append(float(self.rssi_list[-1]))
+            if self.anchor:
+                final_xy.append(float(self.rssi_list[-1]))
             if self.rssi_list2:
                 final_xy.append(float(self.rssi_list2[-1]))
             if self.rssi_list3:
@@ -478,7 +480,8 @@ class EKF_Fusion():
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
         # Remove Range Circle
-        self.cir1.remove()
+        if self.anchor:
+            self.cir1.remove()
         if self.rssi_list2:
             self.cir2.remove()
         if self.rssi_list3:
@@ -494,10 +497,11 @@ class EKF_Fusion():
         self.ax21.auto_scale_xyz([-12, 18], [-18, 12], [-1, 3])
 
         # Plot Range
-        radius = 10**((self.rssi_list[-1] + BETA)/ALPHA)
-        circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
-        self.cir1 = self.ax21.add_patch(circle1)
-        art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
+        if self.anchor:
+            radius = 10 ** ((self.rssi_list[-1] + BETA) / ALPHA)
+            circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
+            self.cir1 = self.ax21.add_patch(circle1)
+            art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
         if self.rssi_list2:
             radius = 10 ** ((self.rssi_list2[-1] + BETA) / ALPHA)
             circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
@@ -515,12 +519,14 @@ class EKF_Fusion():
         self.ax22.set_title("REAL-TIME LORA RSSI", fontweight='bold', fontsize=9, pad=-2)
         self.ax22.set_ylabel("RSSI (dBm)", labelpad=-3)
         #self.ax22.set_ylim(-90, -10)
-        self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
+        if self.anchor:
+            self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
         if self.rssi_list2:
             self.ax22.plot(self.rssi_list2, 'b', alpha=.5, label='RX 2')
         if self.rssi_list3:
             self.ax22.plot(self.rssi_list3, 'cyan', alpha=.5, label='RX 3')
-        self.ax22.legend(loc='lower left')
+        if self.anchor:
+            self.ax22.legend(loc='lower left')
         
         if self.blit:
             # restore background
@@ -578,11 +584,11 @@ class EKF_Fusion():
             radius = .5
         else:
             radius = self.rssi_list[-1]
-        circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.2, linewidth=0.5)
+        circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
         self.cir1 = self.ax21.add_artist(circle1)
-        circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.2, linewidth=0.5)
+        circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
         self.cir2 = self.ax21.add_artist(circle2)
-        circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.2, linewidth=0.5)
+        circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
         self.cir3 = self.ax21.add_artist(circle3)
         
         
