@@ -113,7 +113,7 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         self.my_kf.F = eye(5)
 
         # TWEEK PARAMS
-        self.my_kf.x = np.array([-1.0, -1.5, 0., 0.1, 0.0]).reshape(-1, 1)
+        self.my_kf.x = np.array([-1.0, -0.5, 0., 0.1, 0.0]).reshape(-1, 1)
         # Error Cov of Initial State
         self.my_kf.P = np.diag(np.array([4.0, 4.0, 0.1, 1.0, 0.01]))
         # Process Noise Cov
@@ -157,9 +157,9 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # Refresh Measurement noise R
             # Tip1: TRANS_X uncertainty larger than TRANS_Y
             # Tip2: Large ROT_Z noise loses abs_yaw; Small ROT_Z noise loses track
-            self.my_kf.R[0, 0] = 0.001  # self.sigma_list[-g][0]*1000
-            self.my_kf.R[1, 1] = 0.0001  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = 0.000001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            self.my_kf.R[0, 0] = 0.04  # self.sigma_list[-g][0]*1000
+            self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
+            self.my_kf.R[2, 2] = 0.0001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 4 * SIGMA**2
 
