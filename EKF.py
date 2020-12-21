@@ -132,8 +132,8 @@ def HJacobian_at_AngularV(x, anchor=1):
     # Fix a BUG: denom is variable
     a = ALPHA * math.log10(math.e)
     # HJabobian in (4, 5) if ONE LoRa RX; (6, 5) if THREE LoRa RXs available
-    Jacob = array([[0, 0, 0, dt**2 * math.cos(dt*W), -dt**2 * V * math.sin(dt*W)],
-                   [0, 0, 0, dt**2 * math.sin(dt*W), dt**2 * V * math.cos(dt*W)],
+    Jacob = array([[0, 0, 0, dt * math.cos(dt*W), -dt**2 * V * math.sin(dt*W)],
+                   [0, 0, 0, dt * math.sin(dt*W), dt**2 * V * math.cos(dt*W)],
                    [0, 0, 0, 0, dt]])
     for row in range(0, anchor):
         denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
@@ -162,9 +162,55 @@ def hx_AngularV(x, anchor=1):
         else:
             rssi = ALPHA * math.log10(thres_dis) + BETA
 
-        # Measurement comprises (X, Y, abs_Yaw, RSSIs...)
+        # Measurement comprises (X, Y, Rot_Z, RSSIs...)
         h = np.vstack((h, array([[rssi]])))
         #h = np.vstack((h, array([[0]])))
+    # print("hx return shape: ", h.shape)
+    return h
+
+
+def HJacobian_at_ConstantA(x, anchor=1):
+    """ compute Jacobian of H matrix for state x """
+    dt = .1
+    X = x[0, 0]
+    Y = x[1, 0]
+    theta = x[2, 0]
+    V = x[3, 0]
+    W = x[4, 0]
+    A = x[5, 0]
+    # Fix a BUG: denom is variable
+    a = ALPHA * math.log10(math.e)
+    # HJabobian in (3, 6) if ZERO LoRa RX; (6, 6) if THREE LoRa RXs available
+    Jacob = array([[0, 0, 0, dt * math.cos(dt*W), -dt**2 * V * math.sin(dt*W), 0],
+                   [0, 0, 0, dt * math.sin(dt*W), dt**2 * V * math.cos(dt*W), 0],
+                   [0, 0, 0, 0, dt, 0]])
+    for row in range(0, anchor):
+        denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
+        if denom < 1.:
+            denom = 1.
+        Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0, 0, 0]])))
+
+    # print("HJacobian return: ", Jacob)
+    return Jacob
+
+
+def hx_ConstantA(x, anchor=1):
+    """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
+    """
+    dt = .1
+    trans_x = dt * x[3, 0] * math.cos(dt * x[4, 0])
+    trans_y = dt * x[3, 0] * math.sin(dt * x[4, 0])
+    rot_z = dt * x[4, 0]
+    h = array([trans_x, trans_y, rot_z]).reshape((-1, 1))
+    for row in range(0, anchor):
+        dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
+        thres_dis = 1.
+        if dis > thres_dis:
+            rssi = ALPHA * math.log10(dis) + BETA
+        else:
+            rssi = ALPHA * math.log10(thres_dis) + BETA
+        # Measurement comprises (X, Y, Rot_Z, RSSIs...)
+        h = np.vstack((h, array([[rssi]])))
     # print("hx return shape: ", h.shape)
     return h
 
