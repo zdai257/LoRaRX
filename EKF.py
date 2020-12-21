@@ -132,8 +132,8 @@ def HJacobian_at_AngularV(x, anchor=1):
     # Fix a BUG: denom is variable
     a = ALPHA * math.log10(math.e)
     # HJabobian in (4, 5) if ONE LoRa RX; (6, 5) if THREE LoRa RXs available
-    Jacob = array([[0, 0, 0, dt * math.cos(W), -dt * V * math.sin(W)],
-                   [0, 0, 0, dt * math.sin(W), dt * V * math.cos(W)],
+    Jacob = array([[0, 0, 0, dt**2 * math.cos(dt*W), -dt**2 * V * math.sin(dt*W)],
+                   [0, 0, 0, dt**2 * math.sin(dt*W), dt**2 * V * math.cos(dt*W)],
                    [0, 0, 0, 0, dt]])
     for row in range(0, anchor):
         denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
@@ -149,8 +149,8 @@ def hx_AngularV(x, anchor=1):
     """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
     """
     dt = .1
-    trans_x = dt * x[3, 0] * math.cos(x[4, 0])
-    trans_y = dt * x[3, 0] * math.sin(x[4, 0])
+    trans_x = dt * x[3, 0] * math.cos(dt * x[4, 0])
+    trans_y = dt * x[3, 0] * math.sin(dt * x[4, 0])
     rot_z = dt * x[4, 0]
     h = array([trans_x, trans_y, rot_z]).reshape((-1, 1))
     for row in range(0, anchor):

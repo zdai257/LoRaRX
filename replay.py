@@ -158,9 +158,9 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             # Refresh Measurement noise R
             # Tip1: TRANS_X uncertainty larger than TRANS_Y
             # Tip2: Large ROT_Z noise loses abs_yaw; Small ROT_Z noise loses track
-            self.my_kf.R[0, 0] = 0.0000004  # self.sigma_list[-g][0]*1000
-            self.my_kf.R[1, 1] = 0.00000001  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = 0.0000000000001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            self.my_kf.R[0, 0] = 0.004  # self.sigma_list[-g][0]*1000
+            self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
+            self.my_kf.R[2, 2] = 0.0001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 4 * SIGMA**2
 
@@ -172,28 +172,36 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
                                            [0, 0, 0, 0, self.dt],
                                            [0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0]]) #Fix a BUG:self.dt multiplied twice
-
-            # PREDICTION
-            self.my_kf.predict()
-            #print("X-:\n", self.my_kf.x)
-
-            # UPDATE
-            self.my_kf.update(z, HJacobian_at_AngularV, hx_AngularV, args=(self.anchor), hx_args=(self.anchor))
             '''
             # IMPOSE CONSTRAINTS
             self.my_kf.x, self.my_kf.P = self.constraints()
             # print("Constraint State = ", self.my_kf.x)
             # print("Constraint Error Cov = ", self.my_kf.P)
             '''
+            # PREDICTION
+            self.my_kf.predict()
+            #print("X-:\n", self.my_kf.x)
+
+
+
+            # UPDATE
+            self.my_kf.update(z, HJacobian_at_AngularV, hx_AngularV, args=(self.anchor), hx_args=(self.anchor))
+
+
+
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
             #print("X+:\n", self.my_kf.x)
             # print("EKF per round takes %.6f s" % (time.time() - start_t))
 
     def constraints(self):
-        A = np.diag(np.array([0, 0, 0, 1., 1.]))
+        A = np.array([[0, 0., 0, 1., 0.],
+                      [0, 0., 0, -1., 0.],
+                      [0, 0., 0, 0., 1.],
+                      [0, 0., 0, 0., -1.],
+                      [0, 0., 1., 0., 0.]])
         A_1 = np.linalg.pinv(A)
-        b = np.array([0, 0, 0, 3., 1*math.pi/2]).reshape((-1, 1))
+        b = np.array([1., 0., 1*math.pi/3, 1*math.pi/3, 0.]).reshape((-1, 1))
         x_k = self.my_kf.x
         Pk = self.my_kf.P
         # Constrained State
@@ -211,9 +219,11 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             if x_pk0[3, 0] <= b[3, 0] and x_pk0[4, 0] <= b[4, 0]:
                 continue
             else:
-                x_pk0 = x_k + step*(lamda-1)*s
+
+                x_pk0 = x_k + step * (lamda - 1) * s
                 print(lamda)
                 break
+
 
         x_pk = x_pk0
         Pk_p = np.dot(x_pk, x_pk.reshape((1, -1)))
