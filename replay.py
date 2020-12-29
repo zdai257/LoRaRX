@@ -31,7 +31,7 @@ class EKF_Fusion_MultiRX(EKF_Fusion):
     def rt_show(self):
         super(EKF_Fusion_MultiRX, self).rt_show(t_limit=100.)
         pass
-        
+
 
 
 class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
@@ -235,12 +235,79 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         pass
 
 
+
+class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
+    def __init__(self, anchor, dim_x=5, dt=0.1, visual=True):
+        super().__init__(anchor=anchor, dim_x=dim_x, dt=dt, visual=visual)
+        # TWEEK PARAMS
+        self.my_kf.x = np.array([0., 0., -0.001, -0.1, 0.]).reshape(-1, 1)
+        self.my_kf.P = np.diag(np.array([1., 1., 0.1, 0.1, 0.0001]))
+        self.my_kf.Q = np.diag(np.array([0.0, 0.0, 0.0, 0.0, 0.00001]))
+
+        measure_noise = np.array([1. ** 2, 1. ** 2, 1. ** 2])
+        for dim in range(0, self.anchor):
+            measure_noise = np.hstack((measure_noise, np.array([SIGMA ** 2])))
+        self.my_kf.R = np.diag(measure_noise)
+
+    def rt_run(self, gap):
+
+        for g in range(gap, 0, -1):
+            start_t = time.time()
+            # Get Measurement
+            final_pose = self.final_list[-g]
+            final_xyZ = final_pose[:2]
+            # Add ROT_Z, convert from 'degree' to 'Rad', as measurement!
+            final_xyZ.append(final_pose[-1] * math.pi / 180)
+            # Populate ONE Rssi for a 'gap' of Poses
+            if self.anchor:
+                final_xyZ.append(self.smoother(self.rssi_list))
+            if self.rssi_list2:
+                final_xyZ.append(self.smoother(self.rssi_list2))
+            if self.rssi_list3:
+                final_xyZ.append(self.smoother(self.rssi_list3))
+            z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
+
+            # Refresh Measurement noise R
+            # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI
+            self.my_kf.R[0, 0] = 0.004  # self.sigma_list[-g][0]*1000
+            self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
+            self.my_kf.R[2, 2] = 0.0000001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            for rowcol in range(3, 3 + self.anchor):
+                self.my_kf.R[rowcol, rowcol] = 4 * SIGMA ** 2
+
+            # Transition Martrix F:
+            vx = self.my_kf.x[2, 0]
+            vy = self.my_kf.x[3, 0]
+            w = self.my_kf.x[4, 0]
+            self.my_kf.F = array([[1, 0, self.dt, 0, 0],
+                                         [0, 1, 0, self.dt, 0],
+                                           [0, 0, 1+math.sin(self.dt*w+math.atan2(vy,vx))*vy/(vx**2+vy**2),
+                                            -math.sin(self.dt*w+math.atan2(vy,vx))*vx/(vx**2+vy**2), -self.dt*math.sin(self.dt*w+math.atan2(vy,vx))],
+                                           [0, 0, -math.cos(self.dt*w+math.atan2(vy,vx))*vy/(vx**2+vy**2),
+                                            1+math.cos(self.dt*w+math.atan2(vy,vx))*vx/(vx**2+vy**2), self.dt*math.cos(self.dt*w+math.atan2(vy,vx))],
+                                           [0, 0, 0, 0, 1]])
+
+            # PREDICTION
+            self.my_kf.predict()
+            # print("X-:\n", self.my_kf.x)
+
+            # UPDATE
+            self.my_kf.update(z, HJacobian_at_PosVel, hx_PosVel, args=(self.anchor), hx_args=(self.anchor))
+
+            # Log Posterior State x
+            self.xs.append(self.my_kf.x)
+            # print("X+:\n", self.my_kf.x)
+            # print("EKF per round takes %.6f s" % (time.time() - start_t))
+
+
+
 class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
     def __init__(self, anchor, dt=0.1, visual=True):
         # Added Acceleration, a, as 6th state
         super().__init__(anchor=anchor, dt=dt, dim_x=6, visual=visual)
         # State Transition Martrix: F
         self.my_kf.F = eye(6)
+
         # TWEEK PARAMS
         self.my_kf.x = np.array([-0.5, -0.2, 0., 0.1, 0.0, 0.0]).reshape(-1, 1)
         # Error Cov of Initial State
@@ -313,7 +380,6 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
 
 
 
-
 def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0.2):
     rssi_x = np.arange(0, data_len).tolist()
     rssi_y = [Amp * (math.sin(x / (data_len / period) * 2 * math.pi + phase) + noiseAmp * 2 * (np.random.rand() - 1)) + mean for x in rssi_x]
@@ -327,9 +393,8 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
     
-    ekf = EKF_Fusion_ConstantA(anchor=0)
+    ekf = EKF_Fusion_PosVel(anchor=1)
     # TODO Sync Multiple RX RSSIs and Replay
-
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):

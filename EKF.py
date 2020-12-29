@@ -215,11 +215,54 @@ def hx_ConstantA(x, anchor=1):
     return h
 
 
+def HJacobian_at_PosVel(x, anchor=1):
+    """ compute Jacobian of H matrix for state x """
+    dt = .1
+    X = x[0, 0]
+    Y = x[1, 0]
+    Vx = x[2, 0]
+    Vy = x[3, 0]
+    W = x[4, 0]
+    a = ALPHA * math.log10(math.e)
+    # HJabobian in (3, 5) if ZERO LoRa RX; (6, 5) if THREE LoRa RXs available
+    Jacob = array([[0, 0, dt*Vx*math.cos(dt*W) / math.sqrt(Vx**2+Vy**2), dt*Vy*math.cos(dt*W) / math.sqrt(Vx**2+Vy**2), -dt**2 * math.sin(dt*W)*math.sqrt(Vx**2+Vy**2)],
+                   [0, 0, dt*Vx*math.sin(dt*W) / math.sqrt(Vx**2+Vy**2), dt*Vy*math.sin(dt*W) / math.sqrt(Vx**2+Vy**2), dt**2 * math.cos(dt*W)*math.sqrt(Vx**2+Vy**2)],
+                   [0, 0, 0, 0, dt]])
+    for row in range(0, anchor):
+        denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
+        if denom < 1.:
+            denom = 1.
+        Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0, 0]])))
 
-class PoseVel(object):
+    # print("HJacobian return: ", Jacob)
+    return Jacob
+
+
+def hx_PosVel(x, anchor=1):
+    """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
+    """
+    dt = .1
+    trans_x = dt * math.sqrt(x[2, 0]**2+x[3, 0]**2) * math.cos(dt * x[4, 0])
+    trans_y = dt * math.sqrt(x[2, 0]**2+x[3, 0]**2) * math.sin(dt * x[4, 0])
+    rot_z = dt * x[4, 0]
+    h = array([trans_x, trans_y, rot_z]).reshape((-1, 1))
+    for row in range(0, anchor):
+        dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
+        thres_dis = 1.
+        if dis > thres_dis:
+            rssi = ALPHA * math.log10(dis) + BETA
+        else:
+            rssi = ALPHA * math.log10(thres_dis) + BETA
+        # Measurement comprises (X, Y, Rot_Z, RSSIs...)
+        h = np.vstack((h, array([[rssi]])))
+    # print("hx return shape: ", h.shape)
+    return h
+
+
+
+class Simu(object):
     """ Simulates the Path in 2D.
     """
-
     def __init__(self, dt, pos, rot, vel):
         self.pos = pos
         self.rot = rot
@@ -314,7 +357,7 @@ class EKF_Fusion():
         self.dt = dt
         self.my_kf = ExtendedKalmanFilter(dim_x=dim_x, dim_z=dim_z)
         # Create synthetic Pose and Velocity
-        self.pv = PoseVel(dt=self.dt, pos=np.zeros(shape=(3, 1)), rot=np.zeros(shape=(3, 1)), vel=30.)
+        self.pv = Simu(dt=self.dt, pos=np.zeros(shape=(3, 1)), rot=np.zeros(shape=(3, 1)), vel=30.)
 
         # make an imperfect starting guess
         self.my_kf.x = array([0., 0., 0., 0.01]).reshape(-1, 1)
@@ -604,7 +647,7 @@ class EKF_Fusion():
     def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
         
         self.ax21.view_init(elev=75., azim=-75)
-        self.ax21.set_title("REAL-TIME TRAJECTORY", fontweight='bold', fontsize=9, y=0.1, pad=-5.0)
+        self.ax21.set_title("REAL-TIME TRAJECTORY", fontweight='bold', fontsize=9, pad=-5.0)
         self.ax21.grid(True)
         self.ax21.set_xlabel('X Axis (m)')
         self.ax21.set_ylabel('Y Axis (m)')
