@@ -175,7 +175,7 @@ def HJacobian_at_ConstantA(x, anchor=1):
     X = x[0, 0]
     Y = x[1, 0]
     theta = x[2, 0]
-    V = x[3, 0]
+    V = 5 * x[3, 0]  # Attempt to suppress Velocity
     W = x[4, 0]
     A = x[5, 0]
     # Fix a BUG: denom is variable
@@ -186,8 +186,8 @@ def HJacobian_at_ConstantA(x, anchor=1):
                    [0, 0, 0, 0, dt, 0]])
     for row in range(0, anchor):
         denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
-        if denom < 1.:
-            denom = 1.
+        if denom < 0.01:
+            denom = 0.01
         Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0, 0, 0, 0]])))
 
     # print("HJacobian return: ", Jacob)
@@ -198,13 +198,15 @@ def hx_ConstantA(x, anchor=1):
     """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
     """
     dt = .1
-    trans_x = dt * x[3, 0] * math.cos(dt * x[4, 0])
-    trans_y = dt * x[3, 0] * math.sin(dt * x[4, 0])
-    rot_z = dt * x[4, 0]
+    V = 5 * x[3, 0]
+    W = x[4, 0]
+    trans_x = dt * V * math.cos(dt * W)
+    trans_y = dt * V * math.sin(dt * W)
+    rot_z = dt * W
     h = array([trans_x, trans_y, rot_z]).reshape((-1, 1))
     for row in range(0, anchor):
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
-        thres_dis = 1.
+        thres_dis = 0.1
         if dis > thres_dis:
             rssi = ALPHA * math.log10(dis) + BETA
         else:

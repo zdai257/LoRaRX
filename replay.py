@@ -240,7 +240,7 @@ class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
     def __init__(self, anchor, dim_x=5, dt=0.1, visual=True):
         super().__init__(anchor=anchor, dim_x=dim_x, dt=dt, visual=visual)
         # TWEEK PARAMS
-        self.my_kf.x = np.array([0., 0., -0.001, -0.1, 0.]).reshape(-1, 1)
+        self.my_kf.x = np.array([0., 0., 0.2, -0.2, 0.]).reshape(-1, 1)
         self.my_kf.P = np.diag(np.array([1., 1., 0.1, 0.1, 0.0001]))
         self.my_kf.Q = np.diag(np.array([0.0, 0.0, 0.0, 0.0, 0.00001]))
 
@@ -269,9 +269,9 @@ class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
 
             # Refresh Measurement noise R
             # Tip1: (x, y) should be noisy; Tip2: large noise for RSSI
-            self.my_kf.R[0, 0] = 0.004  # self.sigma_list[-g][0]*1000
-            self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
-            self.my_kf.R[2, 2] = 0.0000001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
+            self.my_kf.R[0, 0] = 0.0004  # self.sigma_list[-g][0]*1000
+            self.my_kf.R[1, 1] = 0.0001  # self.sigma_list[-g][1]*1000
+            self.my_kf.R[2, 2] = 0.00000001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3 + self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 4 * SIGMA ** 2
 
@@ -286,6 +286,17 @@ class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
                                            [0, 0, -math.cos(self.dt*w+math.atan2(vy,vx))*vy/(vx**2+vy**2),
                                             1+math.cos(self.dt*w+math.atan2(vy,vx))*vx/(vx**2+vy**2), self.dt*math.cos(self.dt*w+math.atan2(vy,vx))],
                                            [0, 0, 0, 0, 1]])
+
+            # Insert Independent Random Accelerations to model Process Noise
+            q11, q22 = 1, 1
+            qk = np.array([[q11, 0], [0, q22]])
+            Gk = np.array([[self.dt**2/2, 0],
+                           [0, self.dt**2/2],
+                           [self.dt, 0],
+                           [0, self.dt],
+                           [0, 0]])
+            self.my_kf.Q = np.dot(Gk, qk).dot(Gk.transpose())
+            #print(self.my_kf.Q)
 
             # PREDICTION
             self.my_kf.predict()
@@ -309,7 +320,7 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
         self.my_kf.F = eye(6)
 
         # TWEEK PARAMS
-        self.my_kf.x = np.array([-0.5, -0.2, 0., 0.1, 0.0, 0.0]).reshape(-1, 1)
+        self.my_kf.x = np.array([-0.2, 0.1, 0., 0.1, 0.0, 0.0]).reshape(-1, 1)
         # Error Cov of Initial State
         self.my_kf.P = np.diag(np.array([4.0, 4.0, 0.1, 1.0, 0.01, 0.01]))
         # Process Noise Cov
@@ -360,6 +371,18 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
                                            [0, 0, 0, 0, 0, self.dt],
                                            [0, 0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0, 0]])
+
+            # Insert Independent Random Accelerations to model Process Noise
+            tk = 0.1*len(self.path)
+            qk = 0.005*np.random.rand()*abs(math.sin(2*math.pi*tk))
+            Gk = np.array([[0.5 * self.dt ** 2 * math.cos(self.my_kf.x[2, 0])],
+                           [0.5 * self.dt ** 2 * math.sin(self.my_kf.x[2, 0])],
+                           [0],
+                           [self.dt],
+                           [0],
+                           [1]]) * qk
+            self.my_kf.Q = np.dot(Gk, qk).dot(Gk.transpose())
+            #print(self.my_kf.Q)
             '''
             # IMPOSE CONSTRAINTS
             self.my_kf.x, self.my_kf.P = self.constraints()
@@ -393,7 +416,9 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
     
-    ekf = EKF_Fusion_PosVel(anchor=1)
+    ekf = EKF_Fusion_ConstantA(anchor=0)
+    #ekf = EKF_Fusion_PosVel(anchor=0)
+
     # TODO Sync Multiple RX RSSIs and Replay
 
     for filename in os.listdir('TEST'):
