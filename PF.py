@@ -40,7 +40,7 @@ prior_fn = independent_sample(
     [
         norm(loc=0, scale=0.5).rvs,
         norm(loc=0, scale=0.5).rvs,
-        norm(loc=0, scale=0.1).rvs,
+        uniform(loc=-math.pi, scale=math.pi).rvs,  #norm(loc=0, scale=0.1).rvs,
         gamma(a=1, loc=0, scale=1).rvs,
         norm(loc=0, scale=0.01).rvs,
         norm(loc=0, scale=0.05).rvs,
@@ -48,21 +48,21 @@ prior_fn = independent_sample(
 )
 
 
-def measurement(X):
+def measurement(X, dt=0.1, anchor=1):
     """Given an Nx(3 + RSSIs) matrix of derived measurements,
     compute measurement of [TRANS_X, TRANS_Y, ROT_Z, RSSIs...]^T that would correspond to state x.
     """
-    dt = .1
-    anchor = 1
     Z = np.zeros((X.shape[0], 3 + anchor))
     for i, x in enumerate(X):
-        trans_x = dt * math.sqrt(x[2] ** 2 + x[3] ** 2) * math.cos(dt * x[4])
-        trans_y = dt * math.sqrt(x[2] ** 2 + x[3] ** 2) * math.sin(dt * x[4])
-        rot_z = dt * x[4]
+        V = x[3]
+        W = x[4]
+        trans_x = dt * V * math.cos(dt * W)
+        trans_y = dt * V * math.sin(dt * W)
+        rot_z = dt * W
         h = np.array([trans_x, trans_y, rot_z]).reshape((-1, 1))
         for row in range(0, anchor):
             dis = np.linalg.norm(x[:2] - R1[row, :2])
-            thres_dis = 1.
+            thres_dis = 0.1
             if dis > thres_dis:
                 rssi = ALPHA * math.log10(dis) + BETA
             else:
@@ -75,24 +75,37 @@ def measurement(X):
 
 
 # motion dynamics
-def constantAW(x):
-    dt = 0.1
-    xp = (
-            x
-            @ np.array(
-        [
-            [0, 0, dt * x[3, 0] * math.sin(x[2, 0]) - 0.5 * dt ** 2 * x[5, 0] * math.sin(x[2, 0]),
-             dt * math.cos(x[2, 0]), 0, 0.5 * dt ** 2 * math.cos(x[2, 0])],
-            [0, 0, dt * x[3, 0] * math.cos(x[2, 0]) + 0.5 * dt ** 2 * x[5, 0] * math.sin(x[2, 0]),
-             dt * math.sin(x[2, 0]), 0, 0.5 * dt ** 2 * math.sin(x[2, 0])],
-            [0, 0, 0, 0, dt, 0],
-            [0, 0, 0, 0, 0, dt],
-            [0, 0, 0, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0]
-        ]
-    ).T
-    )
-
+def constantAW(X, dt=0.1):
+    # Still Using the 1st order Taylor Series of ConstantA model as State Transition!?
+    xp = np.zeros(X.shape)
+    for i, x in enumerate(X):
+        '''
+        xp[i] = (
+                x
+                @ np.array(
+            [
+                [1, 0, dt * x[3] * math.sin(x[2]) - 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
+                 dt * math.cos(x[2]), 0, 0.5 * dt ** 2 * math.cos(x[2])],
+                [0, 1, dt * x[3] * math.cos(x[2]) + 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
+                 dt * math.sin(x[2]), 0, 0.5 * dt ** 2 * math.sin(x[2])],
+                [0, 0, 1, 0, dt, 0],
+                [0, 0, 0, 1, 0, dt],
+                [0, 0, 0, 0, 1, 0],
+                [0, 0, 0, 0, 0, 1]
+            ]
+        ).T
+        )
+        '''
+        F = np.array([[1, 0, dt * x[3] * math.sin(x[2]) - 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
+                 dt * math.cos(x[2]), 0, 0.5 * dt ** 2 * math.cos(x[2])],
+                [0, 1, dt * x[3] * math.cos(x[2]) + 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
+                 dt * math.sin(x[2]), 0, 0.5 * dt ** 2 * math.sin(x[2])],
+                [0, 0, 1, 0, dt, 0],
+                [0, 0, 0, 1, 0, dt],
+                [0, 0, 0, 0, 1, 0],
+                [0, 0, 0, 0, 0, 1]])
+        xp[i] = np.dot(F, x.reshape(-1, 1)).reshape((1, -1))
+    #print(xp.shape)
     return xp
 
 
@@ -102,15 +115,15 @@ columns = ["x", "y", "theta", "v", "w", "a"]
 
 class PF_Fusion():
     def __init__(self, dt=0.1, anchor=1, num_particle=200, resample_rate=0.2, blit=True, visual=False):
-        self.dt =dt
+        self.dt = dt
         self.anchor = anchor
         self.visual = visual
         # create the Particle Filter
         self.pf = ParticleFilter(
             prior_fn=prior_fn,
-            observe_fn=measurement,
+            observe_fn=lambda x: measurement(x, self.dt, self.anchor),
             n_particles=num_particle,
-            dynamics_fn=constantAW,
+            dynamics_fn=lambda x: constantAW(x, self.dt),
             noise_fn=lambda x: cauchy_noise(x, sigmas=[0.05, 0.05, 0.01, 0.05, 0.001, 0.005]),
             weight_fn=lambda x, y: squared_error(x, y, sigma=2),
             resample_proportion=resample_rate,
@@ -132,8 +145,8 @@ class PF_Fusion():
         self.blit = blit
         self.handle_scat = None
         self.handle_arrw = None
-        self.handle_scat_ekf = None
-        self.handle_arrw_ekf = None
+        self.handle_scat_pf = None
+        self.handle_arrw_pf = None
         self.ax1background = None
         self.ax2background = None
 
@@ -145,7 +158,7 @@ class PF_Fusion():
         # self.ax22 = self.fig2.add_subplot(2, 1, 2)
         plt.ion()
         plt.tight_layout()
-        #self.set_view()
+        self.set_view()
 
         self.fig2.canvas.draw()
         if self.blit:
@@ -230,10 +243,9 @@ class PF_Fusion():
         print("Elapsed time of PF = ", time.time() - start_t)
         print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw, self.abs_yaw - 2 * math.pi, self.abs_yaw - 4 * math.pi))
         print("State X:\n", self.pf.mean_state)
-        '''
+
         if self.visual:
             self.rt_show()
-        '''
 
 
     def rt_run(self, gap):
@@ -263,7 +275,7 @@ class PF_Fusion():
             # Log Posterior State x
             self.xs.append(self.pf.mean_state)
             #print("X+:\n", self.pf.mean_state)
-            # print("EKF per round takes %.6f s" % (time.time() - start_t))
+            # print("PF per round takes %.6f s" % (time.time() - start_t))
 
 
     def smoother(self, lst):
@@ -276,10 +288,140 @@ class PF_Fusion():
         return float(ave_rssi)
 
 
+    def rt_show(self, t_limit=0.85):
+        start_t = time.time()
+        # u, v, w = self.odom_quat[0], self.odom_quat[1], self.odom_quat[2]
+
+        self.handle_scat.set_alpha(.2)
+        self.handle_scat_pf.set_alpha(.2)
+        self.handle_arrw.remove()
+        # Remove Range Circle
+        if self.anchor:
+            self.cir1.remove()
+        if self.rssi_list2:
+            self.cir2.remove()
+        if self.rssi_list3:
+            self.cir3.remove()
+
+        self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b',
+                                             marker='o', alpha=.9, label='MIO')
+        self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
+                                            self.U, self.V, self.W, color='b', length=2., arrow_length_ratio=0.3,
+                                            linewidths=3., alpha=.7)
+        self.handle_scat_pf = self.ax21.scatter([self.xs[-1][0]], [self.xs[-1][1]], [0.], color='r', marker='o',
+                                                 alpha=.9, label='LoRa-MIO')
+        # Not Attempting to Visual PF Updated Orientation
+        # self.handle_arrw_pf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_pf, self.V_pf, self.W_pf, color='r', length=1., alpha=.7)
+        # Manually Equal Axis and Limit
+        self.ax21.auto_scale_xyz([-12, 18], [-18, 12], [-1, 3])
+
+        # Plot Range
+        if self.anchor:
+            radius = 10 ** ((self.rssi_list[-1] + BETA) / ALPHA)
+            circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
+            self.cir1 = self.ax21.add_patch(circle1)
+            art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
+        if self.rssi_list2:
+            radius = 10 ** ((self.rssi_list2[-1] + BETA) / ALPHA)
+            circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
+            self.cir2 = self.ax21.add_patch(circle2)
+            art3d.pathpatch_2d_to_3d(circle2, z=0, zdir="z")
+        if self.rssi_list3:
+            radius = 10 ** ((self.rssi_list3[-1] + BETA) / ALPHA)
+            circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
+            self.cir3 = self.ax21.add_patch(circle3)
+            art3d.pathpatch_2d_to_3d(circle3, z=0, zdir="z")
+
+        self.ax22.clear()
+        self.ax22.set_facecolor('white')
+        self.ax22.grid(False)
+        self.ax22.set_title("REAL-TIME LORA RSSI", fontweight='bold', fontsize=9, pad=-2)
+        self.ax22.set_ylabel("RSSI (dBm)", labelpad=-3)
+        # self.ax22.set_ylim(-90, -10)
+        if self.anchor:
+            self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
+        if self.rssi_list2:
+            self.ax22.plot(self.rssi_list2, 'b', alpha=.5, label='RX 2')
+        if self.rssi_list3:
+            self.ax22.plot(self.rssi_list3, 'cyan', alpha=.5, label='RX 3')
+        if self.anchor:
+            self.ax22.legend(loc='lower left')
+
+        if self.blit:
+            # restore background
+            self.fig2.canvas.restore_region(self.ax1background)
+            self.fig2.canvas.restore_region(self.ax2background)
+
+            # redraw just the points
+            self.ax21.draw_artist(self.handle_scat)
+            self.ax21.draw_artist(self.handle_arrw)
+            self.ax21.draw_artist(self.handle_scat_pf)
+
+            # fill in the axes rectangle
+            self.fig2.canvas.blit(self.ax21.bbox)
+            self.fig2.canvas.blit(self.ax22.bbox)
+
+        else:
+            self.fig2.canvas.draw()
+
+        self.fig2.canvas.flush_events()
+
+        stop_t = time.time() - start_t
+        print("Elapsed time of VISUALISATION = ", stop_t)
+        # Constrain PLOT time to avoid msg Overflow
+        if stop_t > t_limit:
+            self.fig2.savefig("live_rx.png")
+            self.reset_view()
+            self.set_view(self.path[-1][0], self.path[-1][1], self.path[-1][2], self.U, self.V, self.W,
+                          self.xs[-1][0, 0], self.xs[-1][1, 0], 0.)
+
+    def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
+
+        self.ax21.view_init(elev=75., azim=-75)
+        self.ax21.set_title("REAL-TIME TRAJECTORY", fontweight='bold', fontsize=9, pad=-5.0)
+        self.ax21.grid(True)
+        self.ax21.set_xlabel('X Axis (m)')
+        self.ax21.set_ylabel('Y Axis (m)')
+        self.ax21.set_zlabel('Z Axis (m)')
+        '''
+        self.ax21.set_xlim(-2, 2)
+        self.ax21.set_ylim(-2, 2)
+        self.ax21.set_zlim(-2, 2)
+        '''
+        quiv_len = np.sqrt(u ** 2 + v ** 2 + w ** 2)
+        self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9, label='MIO')
+        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3,
+                                            linewidths=3., alpha=.7)
+        self.handle_scat_pf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9, label='LoRa-MIO')
+        self.ax21.legend(loc='upper left')
+
+        # Show RXs
+        for anc in range(0, self.anchor):
+            self.ax21.scatter(R1[int(anc), 0], R1[int(anc), 1], R1[int(anc), 2], marker='1', s=100, color='magenta')
+
+        # Init Range Display
+        if not self.rssi_list:
+            radius = .5
+        else:
+            radius = self.rssi_list[-1]
+        circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
+        self.cir1 = self.ax21.add_artist(circle1)
+        circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
+        self.cir2 = self.ax21.add_artist(circle2)
+        circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
+        self.cir3 = self.ax21.add_artist(circle3)
+
+    def reset_view(self):
+        self.rssi_list = []
+        self.rssi_list2 = []
+        self.rssi_list3 = []
+        self.ax21.clear()
+
+
 
 if __name__ == "__main__":
 
-    fuse_engine = PF_Fusion(anchor=1, num_particle=500, resample_rate=0.2)
+    fuse_engine = PF_Fusion(anchor=0, num_particle=2000, resample_rate=0.02, visual=True)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
@@ -320,5 +462,5 @@ if __name__ == "__main__":
                 fuse_engine.new_measure(*msg_list)
 
                 # plt.pause(0.01)
-                time.sleep(.05)
+                time.sleep(.001)
 

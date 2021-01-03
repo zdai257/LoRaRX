@@ -175,7 +175,7 @@ def HJacobian_at_ConstantA(x, anchor=1):
     X = x[0, 0]
     Y = x[1, 0]
     theta = x[2, 0]
-    V = 5 * x[3, 0]  # Attempt to suppress Velocity
+    V = x[3, 0]  # Attempt to suppress Velocity
     W = x[4, 0]
     A = x[5, 0]
     # Fix a BUG: denom is variable
@@ -198,7 +198,7 @@ def hx_ConstantA(x, anchor=1):
     """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
     """
     dt = .1
-    V = 5 * x[3, 0]
+    V = x[3, 0]
     W = x[4, 0]
     trans_x = dt * V * math.cos(dt * W)
     trans_y = dt * V * math.sin(dt * W)
