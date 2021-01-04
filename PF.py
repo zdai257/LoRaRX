@@ -7,6 +7,10 @@ from pfilter import (
     cauchy_noise,
     squared_error,
     independent_sample,
+    stratified_resample,
+    systematic_resample,
+    residual_resample,
+    multinomial_resample,
 )
 import numpy as np
 import math
@@ -46,6 +50,53 @@ prior_fn = independent_sample(
         norm(loc=0, scale=0.05).rvs,
     ]
 )
+
+
+def main():
+    fuse_engine = PF_Fusion(anchor=0, num_particle=10000, resample_rate=0.001, visual=True)
+
+    for filename in os.listdir('TEST'):
+        if filename.endswith('.txt'):
+            with open('TEST/' + filename, "r") as f:
+                recv_list = f.readlines()
+
+            # Add synthetic RSSIs
+            data_len = len(recv_list)
+            if 0:
+                rssi_y2 = synthetic_rssi(data_len=data_len, period=1)
+                rssi_y3 = synthetic_rssi(data_len=data_len, period=1, Amp=15, phase=-math.pi / 2, noiseAmp=0.3,
+                                         mean=-45)
+            else:
+                rssi_y2, rssi_y3 = [], []
+
+            rssi_idx = 0
+
+            for item in recv_list:
+                rssi_list = []
+
+                parts = item.split(';')
+                t = parts[0]
+                msgs = parts[1]
+                vals = msgs.split(',')
+                rssi1 = int(parts[2])
+                # Append RXs measurements
+                rssi_list.append(rssi1)
+                if rssi_y2:
+                    rssi_list.append(rssi_y2[rssi_idx])
+                if rssi_y3:
+                    rssi_list.append(rssi_y3[rssi_idx])
+                rssi_idx += 1
+
+                msg_list = [float(i) for i in vals]
+                if fuse_engine.anchor:
+                    msg_list.extend(rssi_list)
+
+                fuse_engine.new_measure(*msg_list)
+
+                # plt.pause(0.01)
+                time.sleep(.001)
+
+    fuse_engine.fig2.savefig("replay_pf.png")
 
 
 def measurement(X, dt=0.1, anchor=1):
@@ -122,9 +173,10 @@ class PF_Fusion():
         self.pf = ParticleFilter(
             prior_fn=prior_fn,
             observe_fn=lambda x: measurement(x, self.dt, self.anchor),
+            resample_fn=stratified_resample,
             n_particles=num_particle,
             dynamics_fn=lambda x: constantAW(x, self.dt),
-            noise_fn=lambda x: cauchy_noise(x, sigmas=[0.05, 0.05, 0.01, 0.05, 0.001, 0.005]),
+            noise_fn=lambda x: cauchy_noise(x, sigmas=[0.00, 0.00, 0.0000, 0.000, 0.000000001, 0.0000005]),
             weight_fn=lambda x, y: squared_error(x, y, sigma=2),
             resample_proportion=resample_rate,
             column_names=columns,
@@ -370,10 +422,10 @@ class PF_Fusion():
         print("Elapsed time of VISUALISATION = ", stop_t)
         # Constrain PLOT time to avoid msg Overflow
         if stop_t > t_limit:
-            self.fig2.savefig("live_rx.png")
+            self.fig2.savefig("replay_pf.png")
             self.reset_view()
             self.set_view(self.path[-1][0], self.path[-1][1], self.path[-1][2], self.U, self.V, self.W,
-                          self.xs[-1][0, 0], self.xs[-1][1, 0], 0.)
+                          self.xs[-1][0], self.xs[-1][1], 0.)
 
     def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
 
@@ -421,46 +473,4 @@ class PF_Fusion():
 
 if __name__ == "__main__":
 
-    fuse_engine = PF_Fusion(anchor=0, num_particle=2000, resample_rate=0.02, visual=True)
-
-    for filename in os.listdir('TEST'):
-        if filename.endswith('.txt'):
-            with open('TEST/' + filename, "r") as f:
-                recv_list = f.readlines()
-
-            # Add synthetic RSSIs
-            data_len = len(recv_list)
-            if 0:
-                rssi_y2 = synthetic_rssi(data_len=data_len, period=1)
-                rssi_y3 = synthetic_rssi(data_len=data_len, period=1, Amp=15, phase=-math.pi / 2, noiseAmp=0.3,
-                                         mean=-45)
-            else:
-                rssi_y2, rssi_y3 = [], []
-
-            rssi_idx = 0
-
-            for item in recv_list:
-                rssi_list = []
-
-                parts = item.split(';')
-                t = parts[0]
-                msgs = parts[1]
-                vals = msgs.split(',')
-                rssi1 = int(parts[2])
-                # Append RXs measurements
-                rssi_list.append(rssi1)
-                if rssi_y2:
-                    rssi_list.append(rssi_y2[rssi_idx])
-                if rssi_y3:
-                    rssi_list.append(rssi_y3[rssi_idx])
-                rssi_idx += 1
-
-                msg_list = [float(i) for i in vals]
-                if fuse_engine.anchor:
-                    msg_list.extend(rssi_list)
-
-                fuse_engine.new_measure(*msg_list)
-
-                # plt.pause(0.01)
-                time.sleep(.001)
-
+    main()

@@ -1,10 +1,18 @@
 ## Commander's LoRa RX: Location Log & Visualisation
 
-Run Replayed data reception in a pack of 10 Odometry outputs by
+Replay data reception and Visualise path in a pack of 10 Odometry outputs by
 
 ```
 python3 rx_lora.py P2P 10
 ```
+
+### SIR Particle Filter
+
+Two rounds of left-hand search:
+
+![left2](https://github.com/zdai257/LoRaRX/blob/main/replay_pf.png)
+
+### Extended Kalman Filter
 
 Left-Hand Search:
 
