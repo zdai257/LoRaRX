@@ -10,14 +10,14 @@ python3 rx_lora.py P2P 10
 
 Two rounds of left-hand search:
 
-![left2](https://github.com/zdai257/LoRaRX/blob/main/replay_pf.png)
+![left2](https://github.com/zdai257/LoRaRX/blob/main/demo0.png)
 
 ### Extended Kalman Filter
 
-Left-Hand Search:
+Two rounds of left-hand search with Constant-Angular-Velocity-and-Acceleration EKF which is decoupled from RSSI-based range:
 
 ![live_plot](https://github.com/zdai257/LoRaRX/blob/main/demo1.png)
 
-Left-Hand Search by Two Rounds:
+Two rounds of left-Hand Search using the same model as above with heavy RSSI average filtering:
 
 ![sim_ekf_plot](https://github.com/zdai257/LoRaRX/blob/main/demo2.png)

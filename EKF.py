@@ -6,6 +6,7 @@ from math import sqrt
 from numpy.random import randn
 from filterpy.kalman import ExtendedKalmanFilter
 from numpy import eye, array, asarray
+from scipy.signal import savgol_filter
 from eulerangles import *
 from utility import *
 from plot_util import *
@@ -24,7 +25,7 @@ R1 = np.array([[0., 0., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
 # Path Loss Model params
-ALPHA = -55#-45.712  # -28.57 * 1.6
+ALPHA = -50#-45.712  # -28.57 * 1.6
 BETA = -5.06
 SIGMA = 4.887
 
@@ -325,7 +326,7 @@ class EKF_Fusion():
         self.final_list = []
         self.sigma_list = []
         self.angle = 0
-        self.rssi_list, self.rssi_list2, self.rssi_list3 = [], [], []
+        self.rssi_list, self.smoothed_rssi_list, self.rssi_list2, self.rssi_list3 = [], [], [], []
         self.vec = np.array([[0], [1], [0], [0]], dtype=float)
         self.odom_quat = self.vec
         
@@ -404,6 +405,7 @@ class EKF_Fusion():
             msg_list = msg_list[:-self.anchor]
 
         self.rssi_list.extend(rssis)
+        self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:
@@ -471,7 +473,7 @@ class EKF_Fusion():
             
             # Populate ONE Rssi for a 'gap' of Poses
             if self.anchor:
-                final_xy.append(float(self.rssi_list[-1]))
+                final_xy.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
             if self.rssi_list2:
                 final_xy.append(float(self.rssi_list2[-1]))
             if self.rssi_list3:
@@ -505,7 +507,33 @@ class EKF_Fusion():
             #print("EKF per round takes %.6f s" % (time.time() - start_t))
 
 
-        
+    def smoother(self, lst, window_size=5, mode='conv'):
+
+        if mode == 'conv':
+            if len(lst) >= window_size:
+                window = np.ones(int(window_size)) / float(window_size)
+                y = np.convolve(np.asarray(lst), window, 'valid')
+                #print(y)
+                return y[-1]
+            else:
+                return lst[-1]
+        elif mode == 'savgol':
+            if len(lst) >= window_size:
+                y = savgol_filter(np.asarray(lst), window_size, 3)
+                #print(y)
+                return y[-2]
+            else:
+                return lst[-1]
+        else:
+            if len(lst) > 3:
+                ave_rssi = 0.6 * lst[-1] + 0.25 * lst[-2] + 0.15 * lst[-3]
+            elif len(lst) == 0:
+                return []
+            else:
+                ave_rssi = lst[-1]
+            return float(ave_rssi)
+
+
     def sim_run(self, anchor=1):
         start_t = time.time()
         
@@ -589,7 +617,7 @@ class EKF_Fusion():
 
         # Plot Range
         if self.anchor:
-            radius = 10 ** ((self.rssi_list[-1] + BETA) / ALPHA)
+            radius = 10 ** ((self.smoothed_rssi_list[-1] + BETA) / ALPHA)
             circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
             self.cir1 = self.ax21.add_patch(circle1)
             art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
@@ -612,6 +640,7 @@ class EKF_Fusion():
         #self.ax22.set_ylim(-90, -10)
         if self.anchor:
             self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
+            self.ax22.plot(self.smoothed_rssi_list, 'green', label='RX Cmd Smoothed')
         if self.rssi_list2:
             self.ax22.plot(self.rssi_list2, 'b', alpha=.5, label='RX 2')
         if self.rssi_list3:

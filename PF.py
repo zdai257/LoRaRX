@@ -24,6 +24,7 @@ from matplotlib import gridspec
 
 # testing only
 from scipy.stats import norm, gamma, uniform
+from scipy.signal import savgol_filter
 import skimage.draw
 
 
@@ -53,7 +54,7 @@ prior_fn = independent_sample(
 
 
 def main():
-    fuse_engine = PF_Fusion(anchor=0, num_particle=10000, resample_rate=0.001, visual=True)
+    fuse_engine = PF_Fusion(anchor=1, num_particle=10000, resample_rate=0.005, visual=True)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
@@ -173,10 +174,10 @@ class PF_Fusion():
         self.pf = ParticleFilter(
             prior_fn=prior_fn,
             observe_fn=lambda x: measurement(x, self.dt, self.anchor),
-            resample_fn=stratified_resample,
+            resample_fn=multinomial_resample,
             n_particles=num_particle,
             dynamics_fn=lambda x: constantAW(x, self.dt),
-            noise_fn=lambda x: cauchy_noise(x, sigmas=[0.00, 0.00, 0.0000, 0.000, 0.000000001, 0.0000005]),
+            noise_fn=lambda x: cauchy_noise(x, sigmas=[0.00001, 0.00001, 0.00000001, 0.0000001, 0.00000001, 0.0000005]),
             weight_fn=lambda x, y: squared_error(x, y, sigma=2),
             resample_proportion=resample_rate,
             column_names=columns,
@@ -191,7 +192,7 @@ class PF_Fusion():
         self.out_pred_array = []
         self.final_list = []
         self.sigma_list = []
-        self.rssi_list, self.rssi_list2, self.rssi_list3 = [], [], []
+        self.rssi_list, self.smoothed_rssi_list, self.rssi_list2, self.rssi_list3 = [], [], [], []
 
         # Visualisation init
         self.blit = blit
@@ -242,6 +243,7 @@ class PF_Fusion():
             msg_list = msg_list[:-self.anchor]
 
         self.rssi_list.extend(rssis)
+        self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:
@@ -311,7 +313,7 @@ class PF_Fusion():
             final_xyZ.append(final_pose[-1] * math.pi/180)
             # Populate ONE Rssi for a 'gap' of Poses
             if self.anchor:
-                final_xyZ.append(self.smoother(self.rssi_list))
+                final_xyZ.append(self.smoothed_rssi_list[-1])
             if self.rssi_list2:
                 final_xyZ.append(self.smoother(self.rssi_list2))
             if self.rssi_list3:
@@ -330,14 +332,31 @@ class PF_Fusion():
             # print("PF per round takes %.6f s" % (time.time() - start_t))
 
 
-    def smoother(self, lst):
-        if len(lst) > 3:
-            ave_rssi = 0.6 * lst[-1] + 0.25*lst[-2] + 0.15*lst[-3]
-        elif len(lst) == 0:
-            return []
+    def smoother(self, lst, window_size=5, mode='conv'):
+
+        if mode == 'conv':
+            if len(lst) >= window_size:
+                window = np.ones(int(window_size)) / float(window_size)
+                y = np.convolve(np.asarray(lst), window, 'valid')
+                #print(y)
+                return y[-1]
+            else:
+                return lst[-1]
+        elif mode == 'savgol':
+            if len(lst) >= window_size:
+                y = savgol_filter(np.asarray(lst), window_size, 3)
+                #print(y)
+                return y[-2]
+            else:
+                return lst[-1]
         else:
-            ave_rssi = lst[-1]
-        return float(ave_rssi)
+            if len(lst) > 3:
+                ave_rssi = 0.6 * lst[-1] + 0.25 * lst[-2] + 0.15 * lst[-3]
+            elif len(lst) == 0:
+                return []
+            else:
+                ave_rssi = lst[-1]
+            return float(ave_rssi)
 
 
     def rt_show(self, t_limit=0.85):
@@ -369,7 +388,7 @@ class PF_Fusion():
 
         # Plot Range
         if self.anchor:
-            radius = 10 ** ((self.rssi_list[-1] + BETA) / ALPHA)
+            radius = 10 ** ((self.smoothed_rssi_list[-1] + BETA) / ALPHA)
             circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
             self.cir1 = self.ax21.add_patch(circle1)
             art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
@@ -392,6 +411,7 @@ class PF_Fusion():
         # self.ax22.set_ylim(-90, -10)
         if self.anchor:
             self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
+            self.ax22.plot(self.smoothed_rssi_list, 'green', label='RX Cmd Smoothed')
         if self.rssi_list2:
             self.ax22.plot(self.rssi_list2, 'b', alpha=.5, label='RX 2')
         if self.rssi_list3:

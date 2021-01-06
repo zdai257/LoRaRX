@@ -125,14 +125,6 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
             measure_noise = np.hstack((measure_noise, np.array([SIGMA ** 2])))
         self.my_kf.R = np.diag(measure_noise)
 
-    def smoother(self, lst):
-        if len(lst) > 3:
-            ave_rssi = 0.6 * lst[-1] + 0.25*lst[-2] + 0.15*lst[-3]
-        elif len(lst) == 0:
-            return []
-        else:
-            ave_rssi = lst[-1]
-        return float(ave_rssi)
 
     def rt_run(self, gap):
 
@@ -361,7 +353,7 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
             self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
             self.my_kf.R[2, 2] = 0.0001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3+self.anchor):
-                self.my_kf.R[rowcol, rowcol] = 4 * SIGMA**2
+                self.my_kf.R[rowcol, rowcol] = 0.2 * SIGMA**2
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(6) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]) - 0.5*self.dt**2 * self.my_kf.x[5, 0] * math.sin(self.my_kf.x[2, 0]),
                                             self.dt * math.cos(self.my_kf.x[2, 0]), 0, 0.5*self.dt**2 * math.cos(self.my_kf.x[2, 0])],
@@ -416,7 +408,7 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
     
-    ekf = EKF_Fusion_ConstantA(anchor=0)
+    ekf = EKF_Fusion_ConstantA(anchor=1)
     #ekf = EKF_Fusion_PosVel(anchor=0)
 
     # TODO Sync Multiple RX RSSIs and Replay
@@ -460,8 +452,8 @@ if __name__=="__main__":
 
                 #plt.pause(0.01)
                 time.sleep(.001)
-               
-            ekf.fig2.savefig("replay_rx.png")
+
+            ekf.fig2.savefig("replay_ekf.png")
 
     '''
             ekf.reset_view()
