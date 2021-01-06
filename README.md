@@ -14,7 +14,7 @@ Two rounds of left-hand search:
 
 ### Extended Kalman Filter
 
-Two rounds of left-hand search with Constant-Angular-Velocity-and-Acceleration EKF which is decoupled from RSSI-based range:
+Two rounds of left-hand search with RSSI-decoupled EKF which uses absolute 2D poses as measurement:
 
 ![live_plot](https://github.com/zdai257/LoRaRX/blob/main/demo1.png)
 

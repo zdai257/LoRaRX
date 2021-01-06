@@ -61,7 +61,7 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
             # Get Measurement
             final_pose = self.final_list[-g]
             final_xy = final_pose[:2]
-            final_xy.append(self.abs_yaw) #Add Yaw as measurement!
+            final_xy.append(self.abs_yaw[-1]) #Add Yaw as measurement!
             # Populate ONE Rssi for a 'gap' of Poses
             final_xy.append(float(self.rssi_list[-1]))
             z = np.asarray(final_xy, dtype=float).reshape(-1, 1)
@@ -252,7 +252,7 @@ class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
             final_xyZ.append(final_pose[-1] * math.pi / 180)
             # Populate ONE Rssi for a 'gap' of Poses
             if self.anchor:
-                final_xyZ.append(self.smoother(self.rssi_list))
+                final_xyZ.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
             if self.rssi_list2:
                 final_xyZ.append(self.smoother(self.rssi_list2))
             if self.rssi_list3:
@@ -279,9 +279,12 @@ class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
                                             1+math.cos(self.dt*w+math.atan2(vy,vx))*vx/(vx**2+vy**2), self.dt*math.cos(self.dt*w+math.atan2(vy,vx))],
                                            [0, 0, 0, 0, 1]])
 
-            # Insert Independent Random Accelerations to model Process Noise
-            q11, q22 = 1, 1
-            qk = np.array([[q11, 0], [0, q22]])
+            # Insert Independent Random Accelerations (a_x, a_y) to model Process Noise
+            mu = 0.
+            sigma = 0.1
+            a_x = np.random.normal(mu, sigma)
+            a_y = np.random.normal(mu, sigma)
+            qk = np.array([[sigma**2, 0], [0, sigma**2]])
             Gk = np.array([[self.dt**2/2, 0],
                            [0, self.dt**2/2],
                            [self.dt, 0],
@@ -336,7 +339,7 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
             final_xyZ.append(final_pose[-1] * math.pi/180)
             # Populate ONE Rssi for a 'gap' of Poses
             if self.anchor:
-                final_xyZ.append(self.smoother(self.rssi_list))
+                final_xyZ.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
             if self.rssi_list2:
                 final_xyZ.append(self.smoother(self.rssi_list2))
             if self.rssi_list3:
@@ -353,26 +356,30 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
             self.my_kf.R[1, 1] = 0.001  # self.sigma_list[-g][1]*1000
             self.my_kf.R[2, 2] = 0.0001  # self.sigma_list[-g][-1]**2 # Sigma of ROT_Z
             for rowcol in range(3, 3+self.anchor):
-                self.my_kf.R[rowcol, rowcol] = 0.2 * SIGMA**2
+                self.my_kf.R[rowcol, rowcol] = 0.5 * SIGMA**2
             # Refresh State Transition Martrix: F
             self.my_kf.F = eye(6) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]) - 0.5*self.dt**2 * self.my_kf.x[5, 0] * math.sin(self.my_kf.x[2, 0]),
                                             self.dt * math.cos(self.my_kf.x[2, 0]), 0, 0.5*self.dt**2 * math.cos(self.my_kf.x[2, 0])],
                                            [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]) + 0.5*self.dt**2 * self.my_kf.x[5, 0] * math.sin(self.my_kf.x[2, 0]),
                                             self.dt * math.sin(self.my_kf.x[2, 0]), 0, 0.5*self.dt**2 * math.sin(self.my_kf.x[2, 0])],
                                            [0, 0, 0, 0, self.dt, 0],
-                                           [0, 0, 0, 0, 0, self.dt],
+                                           #[0, 0, 0, 0, 0, self.dt],
+                                           [0, 0, 0, 0, -self.dt**2*self.my_kf.x[5, 0]*math.sin(self.dt*self.my_kf.x[4, 0]), self.dt*math.cos(self.dt*self.my_kf.x[4, 0])],
                                            [0, 0, 0, 0, 0, 0],
                                            [0, 0, 0, 0, 0, 0]])
 
-            # Insert Independent Random Accelerations to model Process Noise
+            # Insert Independent Random Accelerations scalar, q, to model Process Noise
             tk = 0.1*len(self.path)
-            qk = 0.005*np.random.rand()*abs(math.sin(2*math.pi*tk))
+            #qk = 0.005*np.random.rand()*abs(math.sin(2*math.pi*tk))
+            mu, sigma = 0., 0.0001
+            a = np.random.normal(0, sigma)
+            qk = sigma**2
             Gk = np.array([[0.5 * self.dt ** 2 * math.cos(self.my_kf.x[2, 0])],
                            [0.5 * self.dt ** 2 * math.sin(self.my_kf.x[2, 0])],
                            [0],
                            [self.dt],
                            [0],
-                           [1]]) * qk
+                           [1]])
             self.my_kf.Q = np.dot(Gk, qk).dot(Gk.transpose())
             #print(self.my_kf.Q)
             '''
@@ -394,6 +401,58 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
             # print("EKF per round takes %.6f s" % (time.time() - start_t))
 
 
+class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
+    def __init__(self, anchor, dt=0.1, visual=True):
+        # Xk = [x, y, theta]
+        super().__init__(anchor=anchor, dt=dt, dim_x=3, visual=visual)
+        # State Transition Martrix: F
+        self.my_kf.F = eye(3)
+
+        # TWEEK PARAMS
+        self.my_kf.x = np.array([-0.1, 0.1, 0.]).reshape(-1, 1)
+        # Error Cov of Initial State
+        self.my_kf.P = np.diag(np.array([1.0, 1.0, 0.1]))
+        # Process Noise Cov
+        self.my_kf.Q = np.diag(np.array([0.01, 0.01, 0.0001]))
+
+    def rt_run(self, gap):
+
+        for g in range(gap, 0, -1):
+            start_t = time.time()
+            # Get Measurement [ABS_X, ABS_Y, ABS_YAW('Rad')]
+            final_xyZ = [self.abs_x[-g], self.abs_y[-g], self.abs_yaw[-1]]
+            # Populate ONE Rssi for a 'gap' of Poses
+            if self.anchor:
+                final_xyZ.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
+            if self.rssi_list2:
+                final_xyZ.append(self.smoother(self.rssi_list2))
+            if self.rssi_list3:
+                final_xyZ.append(self.smoother(self.rssi_list3))
+
+            z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
+            #print("Measurement z: ", z)
+            # TODO Add data integraty check: X+ value explodes
+
+            # Refresh Measurement noise R
+            self.my_kf.R[0, 0] = 0.1  # ABS_X
+            self.my_kf.R[1, 1] = 0.1  # ABS_Y
+            self.my_kf.R[2, 2] = 0.0001  # ABS_YAW
+            for rowcol in range(3, 3+self.anchor):
+                self.my_kf.R[rowcol, rowcol] = 0.1 * SIGMA**2
+
+            # PREDICTION
+            self.my_kf.predict()
+            #print("X-:\n", self.my_kf.x)
+
+            # UPDATE
+            self.my_kf.update(z, HJacobian_Origin, hx_Origin, args=(self.anchor), hx_args=(self.anchor))
+
+            # Log Posterior State x
+            self.xs.append(self.my_kf.x)
+            #print("X+:\n", self.my_kf.x)
+            # print("EKF per round takes %.6f s" % (time.time() - start_t))
+
+
 
 def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0.2):
     rssi_x = np.arange(0, data_len).tolist()
@@ -407,8 +466,9 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 
 if __name__=="__main__":
-    
-    ekf = EKF_Fusion_ConstantA(anchor=1)
+
+    ekf = EKF_Origin(anchor=0)
+    #ekf = EKF_Fusion_ConstantA(anchor=1)
     #ekf = EKF_Fusion_PosVel(anchor=0)
 
     # TODO Sync Multiple RX RSSIs and Replay

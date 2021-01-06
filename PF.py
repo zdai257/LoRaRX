@@ -243,7 +243,8 @@ class PF_Fusion():
             msg_list = msg_list[:-self.anchor]
 
         self.rssi_list.extend(rssis)
-        self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
+        if self.anchor:
+            self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:

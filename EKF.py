@@ -25,7 +25,7 @@ R1 = np.array([[0., 0., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
 # Path Loss Model params
-ALPHA = -50#-45.712  # -28.57 * 1.6
+ALPHA = -55#-45.712  # -28.57 * 1.6
 BETA = -5.06
 SIGMA = 4.887
 
@@ -262,6 +262,42 @@ def hx_PosVel(x, anchor=1):
     return h
 
 
+def HJacobian_Origin(x, anchor=1):
+    """ compute Jacobian of H matrix for state x """
+    dt = .1
+    X = x[0, 0]
+    Y = x[1, 0]
+    theta = x[2, 0]
+    a = ALPHA * math.log10(math.e)
+    # HJabobian in (3, 3) if ZERO LoRa RX; (6, 3) if THREE LoRa RXs available
+    Jacob = eye(3)
+    for row in range(0, anchor):
+        denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
+        if denom < 0.01:
+            denom = 0.01
+        Jacob = np.vstack((Jacob, array([[a * (X - R1[row, 0]) / denom, a * (Y - R1[row, 1]) / denom, 0]])))
+
+    # print("HJacobian return: ", Jacob)
+    return Jacob
+
+
+def hx_Origin(x, anchor=1):
+    """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
+    """
+    dt = .1
+    h = array([x[0, 0], x[1, 0], x[2, 0]]).reshape((-1, 1))
+    for row in range(0, anchor):
+        dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
+        thres_dis = 0.1
+        if dis > thres_dis:
+            rssi = ALPHA * math.log10(dis) + BETA
+        else:
+            rssi = ALPHA * math.log10(thres_dis) + BETA
+        # Measurement comprises (X, Y, Rot_Z, RSSIs...)
+        h = np.vstack((h, array([[rssi]])))
+    # print("hx return shape: ", h.shape)
+    return h
+
 
 class Simu(object):
     """ Simulates the Path in 2D.
@@ -389,7 +425,7 @@ class EKF_Fusion():
         self.time = []
         self.path = []
         self.path_ekf = []
-        self.abs_yaw = 0
+        self.abs_x, self.abs_y, self.abs_yaw = [], [], []
         
         
     def new_measure(self, *args, **kwargs):
@@ -405,7 +441,8 @@ class EKF_Fusion():
             msg_list = msg_list[:-self.anchor]
 
         self.rssi_list.extend(rssis)
-        self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
+        if self.anchor:
+            self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:
@@ -428,25 +465,30 @@ class EKF_Fusion():
             
             #pos.odom_quat = tf.transformations.quaternion_from_matrix(pos.pred_transform_t_1)
             #print(pos.odom_quat)
+            # Compute ABS_POSE
+            self.abs_x.append(abs_pred_transform[0, 3])
+            self.abs_y.append(abs_pred_transform[1, 3])
+
+            euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
+                                  [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
+                                  [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]],
+                                 dtype=float)
+            # euler_rad = (yaw, pitch, roll)
+            euler_rad = mat2euler(euler_rot)
+            self.abs_yaw.append(euler_rad[0])
+            # print("Current Eular = ", euler_rad)
+            self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
+            # print("Current Quaternion = ", self.odom_quat)
+
         gap = int(len(msg_list)/len_pose)
         #print(self.out_pred_array[-1])
-        
-        euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
-                              [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
-                              [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]], dtype=float)
-        # euler_rad = (yaw, pitch, roll)
-        euler_rad = mat2euler(euler_rot)
-        self.abs_yaw = euler_rad[0]
-        #print("Current Eular = ", euler_rad)
-        self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
-        #print("Current Quaternion = ", self.odom_quat)
-        
+
         # Unit Vector from Eular Angle; Simplify Orientation Representation by Pitch = 0
-        self.U = math.cos(self.abs_yaw)#math.cos(euler_rad[0])*math.cos(euler_rad[1])
-        self.V = math.sin(self.abs_yaw)#math.sin(euler_rad[0])*math.cos(euler_rad[1])
-        self.W = 0#math.sin(euler_rad[1])
+        self.U = math.cos(self.abs_yaw[-1])#math.cos(euler_rad[0])*math.cos(euler_rad[1])
+        self.V = math.sin(self.abs_yaw[-1])#math.sin(euler_rad[0])*math.cos(euler_rad[1])
+        self.W = 0  #math.sin(euler_rad[1])
         
-        self.path.append([abs_pred_transform[0, 3], abs_pred_transform[1, 3], 0])
+        self.path.append([self.abs_x[-1], self.abs_y[-1], 0])
         
         print("Elapsed time PoseTransform = ", time.time() - start_t)
         start_t = time.time()
@@ -454,7 +496,7 @@ class EKF_Fusion():
         # Trigger EKF
         self.rt_run(gap)
         print("Elapsed time of EKF = ", time.time() - start_t)
-        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw, self.abs_yaw-2*math.pi, self.abs_yaw-4*math.pi))
+        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw[-1], self.abs_yaw[-1] - 2*math.pi, self.abs_yaw[-1] - 4*math.pi))
         print("State X:\n", self.my_kf.x)
 
         if self.visual:
@@ -613,7 +655,7 @@ class EKF_Fusion():
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        self.ax21.auto_scale_xyz([-12, 18], [-18, 12], [-1, 3])
+        self.ax21.auto_scale_xyz([-10, 15], [-15, 10], [-1, 3])
 
         # Plot Range
         if self.anchor:
