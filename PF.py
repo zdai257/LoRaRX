@@ -43,18 +43,21 @@ SIGMA = 4.887
 # prior sampling function for each variable
 prior_fn = independent_sample(
     [
-        norm(loc=0, scale=0.5).rvs,
-        norm(loc=0, scale=0.5).rvs,
-        uniform(loc=-math.pi, scale=math.pi).rvs,  #norm(loc=0, scale=0.1).rvs,
-        gamma(a=1, loc=0, scale=1).rvs,
-        norm(loc=0, scale=0.01).rvs,
-        norm(loc=0, scale=0.05).rvs,
+        norm(loc=0, scale=1.0).rvs,
+        norm(loc=0, scale=1.0).rvs,
+        norm(loc=0, scale=0.1).rvs,  #uniform(loc=-math.pi, scale=math.pi).rvs,
+        #gamma(a=1, loc=0, scale=1).rvs,
+        #norm(loc=0, scale=0.01).rvs,
+        #norm(loc=0, scale=0.05).rvs,
     ]
 )
 
 
 def main():
-    fuse_engine = PF_Fusion(anchor=1, num_particle=10000, resample_rate=0.005, visual=True)
+    # Key params to Tweek:
+    # 1. num_particle & resample_rate
+    # 2. noise_fn determines process noise
+    fuse_engine = PF_Fusion(anchor=1, num_particle=1000, resample_rate=0.01, visual=True)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
@@ -131,23 +134,7 @@ def constantAW(X, dt=0.1):
     # Still Using the 1st order Taylor Series of ConstantA model as State Transition!?
     xp = np.zeros(X.shape)
     for i, x in enumerate(X):
-        '''
-        xp[i] = (
-                x
-                @ np.array(
-            [
-                [1, 0, dt * x[3] * math.sin(x[2]) - 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
-                 dt * math.cos(x[2]), 0, 0.5 * dt ** 2 * math.cos(x[2])],
-                [0, 1, dt * x[3] * math.cos(x[2]) + 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
-                 dt * math.sin(x[2]), 0, 0.5 * dt ** 2 * math.sin(x[2])],
-                [0, 0, 1, 0, dt, 0],
-                [0, 0, 0, 1, 0, dt],
-                [0, 0, 0, 0, 1, 0],
-                [0, 0, 0, 0, 0, 1]
-            ]
-        ).T
-        )
-        '''
+
         F = np.array([[1, 0, dt * x[3] * math.sin(x[2]) - 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
                  dt * math.cos(x[2]), 0, 0.5 * dt ** 2 * math.cos(x[2])],
                 [0, 1, dt * x[3] * math.cos(x[2]) + 0.5 * dt ** 2 * x[5] * math.sin(x[2]),
@@ -157,12 +144,44 @@ def constantAW(X, dt=0.1):
                 [0, 0, 0, 0, 1, 0],
                 [0, 0, 0, 0, 0, 1]])
         xp[i] = np.dot(F, x.reshape(-1, 1)).reshape((1, -1))
+
     #print(xp.shape)
     return xp
 
 
+def measurement_origin(X, dt=0.1, anchor=1):
+    """Given an Nx(3 + RSSIs) matrix of derived measurements,
+    compute measurement of [TRANS_X, TRANS_Y, ROT_Z, RSSIs...]^T that would correspond to state x.
+    """
+    Z = np.zeros((X.shape[0], 3 + anchor))
+    for i, x in enumerate(X):
+        h = np.array([x[0], x[1], x[2]]).reshape((-1, 1))
+        for row in range(0, anchor):
+            dis = np.linalg.norm(x[:2] - R1[row, :2])
+            thres_dis = 0.1
+            if dis > thres_dis:
+                rssi = ALPHA * math.log10(dis) + BETA
+            else:
+                rssi = ALPHA * math.log10(thres_dis) + BETA
+            # Measurement comprises (X, Y, Rot_Z, RSSIs...)
+            h = np.vstack((h, np.array([[rssi]])))
+        # print("hx return shape: ", h.shape)
+        Z[i] = h.reshape((1, -1))
+    return Z
+
+
+# Origin Model
+def origin(X, dt=0.1):
+    xp = np.zeros(X.shape)
+    for i, x in enumerate(X):
+        F = np.eye(3)
+        xp[i] = np.dot(F, x.reshape(-1, 1)).reshape((1, -1))
+    # print(xp.shape)
+    return xp
+
+
 # names (this is just for reference for the moment!)
-columns = ["x", "y", "theta", "v", "w", "a"]
+columns = ["x", "y", "theta"]#, "v", "w", "a"]
 
 
 class PF_Fusion():
@@ -173,11 +192,11 @@ class PF_Fusion():
         # create the Particle Filter
         self.pf = ParticleFilter(
             prior_fn=prior_fn,
-            observe_fn=lambda x: measurement(x, self.dt, self.anchor),
-            resample_fn=multinomial_resample,
+            observe_fn=lambda x: measurement_origin(x, self.dt, self.anchor),
+            resample_fn=stratified_resample,  #multinomial_resample,
             n_particles=num_particle,
-            dynamics_fn=lambda x: constantAW(x, self.dt),
-            noise_fn=lambda x: cauchy_noise(x, sigmas=[0.00001, 0.00001, 0.00000001, 0.0000001, 0.00000001, 0.0000005]),
+            dynamics_fn=lambda x: origin(x, self.dt),
+            noise_fn=lambda x: cauchy_noise(x, sigmas=[0.5, 0.5, 0.01]),
             weight_fn=lambda x, y: squared_error(x, y, sigma=2),
             resample_proportion=resample_rate,
             column_names=columns,
@@ -226,7 +245,7 @@ class PF_Fusion():
         self.time = []
         self.path = []
         self.path_pf = []
-        self.abs_yaw = 0
+        self.abs_yaw, self.abs_x, self.abs_y = [], [], []
 
 
 
@@ -269,23 +288,28 @@ class PF_Fusion():
 
             # pos.odom_quat = tf.transformations.quaternion_from_matrix(pos.pred_transform_t_1)
             # print(pos.odom_quat)
+
+            # Compute ABS_POSE
+            self.abs_x.append(abs_pred_transform[0, 3])
+            self.abs_y.append(abs_pred_transform[1, 3])
+
+            euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
+                                  [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
+                                  [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]],
+                                 dtype=float)
+            # euler_rad = (yaw, pitch, roll)
+            euler_rad = mat2euler(euler_rot)
+            self.abs_yaw.append(euler_rad[0])
+            # print("Current Eular = ", euler_rad)
+            self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
+            # print("Current Quaternion = ", self.odom_quat)
+
         gap = int(len(msg_list) / len_pose)
         # print(self.out_pred_array[-1])
 
-        euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
-                              [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
-                              [abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2]]],
-                             dtype=float)
-        # euler_rad = (yaw, pitch, roll)
-        euler_rad = mat2euler(euler_rot)
-        self.abs_yaw = euler_rad[0]
-        # print("Current Eular = ", euler_rad)
-        self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
-        # print("Current Quaternion = ", self.odom_quat)
-
         # Unit Vector from Eular Angle; Simplify Orientation Representation by Pitch = 0
-        self.U = math.cos(self.abs_yaw)  # math.cos(euler_rad[0])*math.cos(euler_rad[1])
-        self.V = math.sin(self.abs_yaw)  # math.sin(euler_rad[0])*math.cos(euler_rad[1])
+        self.U = math.cos(self.abs_yaw[-1])  # math.cos(euler_rad[0])*math.cos(euler_rad[1])
+        self.V = math.sin(self.abs_yaw[-1])  # math.sin(euler_rad[0])*math.cos(euler_rad[1])
         self.W = 0  # math.sin(euler_rad[1])
 
         self.path.append([abs_pred_transform[0, 3], abs_pred_transform[1, 3], 0])
@@ -294,13 +318,40 @@ class PF_Fusion():
         start_t = time.time()
 
         # Trigger PF
-        self.rt_run(gap)
+        self.rt_run_origin(gap)  #self.rt_run(gap)
         print("Elapsed time of PF = ", time.time() - start_t)
-        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw, self.abs_yaw - 2 * math.pi, self.abs_yaw - 4 * math.pi))
+        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw[-1], self.abs_yaw[-1] - 2 * math.pi, self.abs_yaw[-1] - 4 * math.pi))
         print("State X:\n", self.pf.mean_state)
 
         if self.visual:
-            self.rt_show()
+            self.rt_show(t_limit=100.)
+
+
+    def rt_run_origin(self, gap):
+
+        for g in range(gap, 0, -1):
+            start_t = time.time()
+            # Get Measurement [ABS_X, ABS_Y, ABS_YAW('Rad')]
+            final_xyZ = [self.abs_x[-g], self.abs_y[-g], self.abs_yaw[-g]]
+            # Populate ONE Rssi for a 'gap' of Poses
+            if self.anchor:
+                final_xyZ.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
+            if self.rssi_list2:
+                final_xyZ.append(self.smoother(self.rssi_list2))
+            if self.rssi_list3:
+                final_xyZ.append(self.smoother(self.rssi_list3))
+
+            z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
+            #print("Measurement z: ", z)
+            # TODO Add data integraty check: X+ value explodes
+
+            # Feed Observation to Update
+            self.pf.update(z)
+
+            # Log Posterior State x
+            self.xs.append(self.pf.mean_state)
+            # print("X+:\n", self.pf.mean_state)
+            # print("PF per round takes %.6f s" % (time.time() - start_t))
 
 
     def rt_run(self, gap):
@@ -385,7 +436,7 @@ class PF_Fusion():
         # Not Attempting to Visual PF Updated Orientation
         # self.handle_arrw_pf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_pf, self.V_pf, self.W_pf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        self.ax21.auto_scale_xyz([-12, 18], [-18, 12], [-1, 3])
+        self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])
 
         # Plot Range
         if self.anchor:

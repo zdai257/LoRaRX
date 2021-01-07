@@ -372,7 +372,7 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
             tk = 0.1*len(self.path)
             #qk = 0.005*np.random.rand()*abs(math.sin(2*math.pi*tk))
             mu, sigma = 0., 0.0001
-            a = np.random.normal(0, sigma)
+            a = np.random.normal(mu, sigma)
             qk = sigma**2
             Gk = np.array([[0.5 * self.dt ** 2 * math.cos(self.my_kf.x[2, 0])],
                            [0.5 * self.dt ** 2 * math.sin(self.my_kf.x[2, 0])],
@@ -380,7 +380,7 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
                            [self.dt],
                            [0],
                            [1]])
-            self.my_kf.Q = np.dot(Gk, qk).dot(Gk.transpose())
+            self.my_kf.Q = np.dot(Gk, qk).dot(Gk.reshape((1, -1)))
             #print(self.my_kf.Q)
             '''
             # IMPOSE CONSTRAINTS
@@ -411,16 +411,16 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
         # TWEEK PARAMS
         self.my_kf.x = np.array([-0.1, 0.1, 0.]).reshape(-1, 1)
         # Error Cov of Initial State
-        self.my_kf.P = np.diag(np.array([1.0, 1.0, 0.1]))
+        self.my_kf.P = np.diag(np.array([10.0, 10.0, 1.0]))
         # Process Noise Cov
-        self.my_kf.Q = np.diag(np.array([0.01, 0.01, 0.0001]))
+        self.my_kf.Q = np.diag(np.array([0.1, 0.1, 0.01]))
 
     def rt_run(self, gap):
 
         for g in range(gap, 0, -1):
             start_t = time.time()
             # Get Measurement [ABS_X, ABS_Y, ABS_YAW('Rad')]
-            final_xyZ = [self.abs_x[-g], self.abs_y[-g], self.abs_yaw[-1]]
+            final_xyZ = [self.abs_x[-g], self.abs_y[-g], self.abs_yaw[-g]]
             # Populate ONE Rssi for a 'gap' of Poses
             if self.anchor:
                 final_xyZ.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
@@ -434,9 +434,9 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             # TODO Add data integraty check: X+ value explodes
 
             # Refresh Measurement noise R
-            self.my_kf.R[0, 0] = 0.1  # ABS_X
-            self.my_kf.R[1, 1] = 0.1  # ABS_Y
-            self.my_kf.R[2, 2] = 0.0001  # ABS_YAW
+            self.my_kf.R[0, 0] = 0.5  # ABS_X
+            self.my_kf.R[1, 1] = 0.5  # ABS_Y
+            self.my_kf.R[2, 2] = 0.01  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 0.1 * SIGMA**2
 
@@ -467,7 +467,7 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
 
-    ekf = EKF_Origin(anchor=0)
+    ekf = EKF_Origin(anchor=1)
     #ekf = EKF_Fusion_ConstantA(anchor=1)
     #ekf = EKF_Fusion_PosVel(anchor=0)
 
