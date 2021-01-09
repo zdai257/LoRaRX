@@ -10,14 +10,16 @@ python3 rx_lora.py P2P 10
 
 Two rounds of left-hand search with Particle Filter:
 
-![left2](https://github.com/zdai257/LoRaRX/blob/main/demo0.png)
+![pf_left2](https://github.com/zdai257/LoRaRX/blob/main/demo0.png)
 
 ### Extended Kalman Filter
 
 Two rounds of left-hand search with EKF which uses absolute 2D poses as measurement (fine-grained plot with 10Hz refresh rate):
 
-![live_plot](https://github.com/zdai257/LoRaRX/blob/main/demo10.png)
+![left2_fine](https://github.com/zdai257/LoRaRX/blob/main/demo10.png)
 
 THREE rounds of left-Hand Search using the same model as above. Path constraining effect is explicit:
 
-![sim_ekf_plot](https://github.com/zdai257/LoRaRX/blob/main/demo2.png)
+![left3](https://github.com/zdai257/LoRaRX/blob/main/demo2.png)
+
+![left3_fine](https://github.com/zdai257/LoRaRX/blob/main/demo20.png)
