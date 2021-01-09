@@ -345,8 +345,9 @@ class Simu(object):
 
 
 class EKF_Fusion():
-    def __init__(self, dt=0.1, anchor=1, dim_x=4, dim_z=3, blit=True, visual=False):
+    def __init__(self, dt=0.1, anchor=1, dim_x=4, dim_z=3, blit=True, visual=False, dense=False):
         self.visual = visual
+        self.dense = dense
         self.anchor = anchor
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
@@ -420,14 +421,13 @@ class EKF_Fusion():
         self.my_kf.P *= 50
 
         # logging
-        self.xs = []
         self.track = []
         self.time = []
-        self.path = []
-        self.path_ekf = []
+        self.xs = []
+        self.path, self.path_dense = [], []
         self.abs_x, self.abs_y, self.abs_yaw = [], [], []
-        
-        
+        self.U, self.V, self.W = [], [], []
+
     def new_measure(self, *args, **kwargs):
         start_t = time.time()
         len_pose = 12
@@ -449,25 +449,28 @@ class EKF_Fusion():
             self.rssi_list3.append(rssis[2])
 
         for idx in range(0, len(msg_list), len_pose):
-            final_pose = msg_list[idx:idx+6]
-            sigma_pose = msg_list[idx+6:idx+12]
-            #print(final_pose)
-            #print(sigma_pose)
+            final_pose = msg_list[idx:idx + 6]
+            sigma_pose = msg_list[idx + 6:idx + 12]
+            # print(final_pose)
+            # print(sigma_pose)
             self.final_list.append(final_pose)
             self.sigma_list.append(sigma_pose)
-            
+
             pred_transform_t = convert_eul_to_matrix(0, 0, 0, final_pose)
             abs_pred_transform = np.dot(self.pred_transform_t_1, pred_transform_t)
-            self.out_pred_array.append([abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2], abs_pred_transform[0, 3],
-                                            abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2], abs_pred_transform[1, 3],
-                                            abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2], abs_pred_transform[2, 3]])
+            self.out_pred_array.append(
+                [abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2], abs_pred_transform[0, 3],
+                 abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2], abs_pred_transform[1, 3],
+                 abs_pred_transform[2, 0], abs_pred_transform[2, 1], abs_pred_transform[2, 2],
+                 abs_pred_transform[2, 3]])
             self.pred_transform_t_1 = abs_pred_transform
-            
-            #pos.odom_quat = tf.transformations.quaternion_from_matrix(pos.pred_transform_t_1)
-            #print(pos.odom_quat)
+
+            # pos.odom_quat = tf.transformations.quaternion_from_matrix(pos.pred_transform_t_1)
+            # print(pos.odom_quat)
             # Compute ABS_POSE
             self.abs_x.append(abs_pred_transform[0, 3])
             self.abs_y.append(abs_pred_transform[1, 3])
+            self.path_dense.append([self.abs_x[-1], self.abs_y[-1], 0])
 
             euler_rot = np.array([[abs_pred_transform[0, 0], abs_pred_transform[0, 1], abs_pred_transform[0, 2]],
                                   [abs_pred_transform[1, 0], abs_pred_transform[1, 1], abs_pred_transform[1, 2]],
@@ -479,40 +482,44 @@ class EKF_Fusion():
             # print("Current Eular = ", euler_rad)
             self.odom_quat = np.array(euler2quat(euler_rad[0], euler_rad[1], euler_rad[2]))
             # print("Current Quaternion = ", self.odom_quat)
+            if self.dense:
+                # Unit Vector from Eular Angle; Simplify Orientation Representation by Pitch = 0
+                self.U.append(math.cos(self.abs_yaw[-1]))  # math.cos(euler_rad[0])*math.cos(euler_rad[1])
+                self.V.append(math.sin(self.abs_yaw[-1]))  # math.sin(euler_rad[0])*math.cos(euler_rad[1])
+                self.W.append(0.)  # math.sin(euler_rad[1])
 
-        gap = int(len(msg_list)/len_pose)
-        #print(self.out_pred_array[-1])
+        gap = int(len(msg_list) / len_pose)
+        # print(self.out_pred_array[-1])
 
-        # Unit Vector from Eular Angle; Simplify Orientation Representation by Pitch = 0
-        self.U = math.cos(self.abs_yaw[-1])#math.cos(euler_rad[0])*math.cos(euler_rad[1])
-        self.V = math.sin(self.abs_yaw[-1])#math.sin(euler_rad[0])*math.cos(euler_rad[1])
-        self.W = 0  #math.sin(euler_rad[1])
-        
+        if not self.dense:
+            self.U.append(math.cos(self.abs_yaw[-1]))  # math.cos(euler_rad[0])*math.cos(euler_rad[1])
+            self.V.append(math.sin(self.abs_yaw[-1]))  # math.sin(euler_rad[0])*math.cos(euler_rad[1])
+            self.W.append(0.)  # math.sin(euler_rad[1])
+
         self.path.append([self.abs_x[-1], self.abs_y[-1], 0])
-        
+
         print("Elapsed time PoseTransform = ", time.time() - start_t)
         start_t = time.time()
-        
+
         # Trigger EKF
         self.rt_run(gap)
         print("Elapsed time of EKF = ", time.time() - start_t)
-        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (self.abs_yaw[-1], self.abs_yaw[-1] - 2*math.pi, self.abs_yaw[-1] - 4*math.pi))
+        print("ABS_YAW: %.3f (=%.3f OR %.3f)" % (
+        self.abs_yaw[-1], self.abs_yaw[-1] - 2 * math.pi, self.abs_yaw[-1] - 4 * math.pi))
         print("State X:\n", self.my_kf.x)
 
-        if self.visual:
+        if self.visual and not self.dense:
             self.rt_show()
 
-        
-        
     def rt_run(self, gap):
-        
+
         for g in range(gap, 0, -1):
             start_t = time.time()
             # Get Measurement
             final_pose = self.final_list[-g]
             final_xy = final_pose[:2]
-            #print(final_xy)
-            
+            # print(final_xy)
+
             # Populate ONE Rssi for a 'gap' of Poses
             if self.anchor:
                 final_xy.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
@@ -520,33 +527,36 @@ class EKF_Fusion():
                 final_xy.append(float(self.rssi_list2[-1]))
             if self.rssi_list3:
                 final_xy.append(float(self.rssi_list3[-1]))
-            
+
             z = np.asarray(final_xy, dtype=float).reshape(-1, 1)
-            #print("Measurement:\n", z)
+            # print("Measurement:\n", z)
             # Refresh Measurement noise R
             '''
             for j in range(0, 2):
                 self.my_kf.R[j, j] = self.sigma_list[-g][j]**2 # Sigma stands for Standard Deviation
             '''
             # Refresh State Transition Martrix: F
-            self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]), self.dt * math.cos(self.my_kf.x[2, 0])],
-                                  [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]), self.dt * math.sin(self.my_kf.x[2, 0])],
-                                  [0, 0, 0, 0],
-                                  [0, 0, 0, 0]])
-            
+            self.my_kf.F = eye(4) + array([[0, 0, -self.dt * self.my_kf.x[3, 0] * math.sin(self.my_kf.x[2, 0]),
+                                            self.dt * math.cos(self.my_kf.x[2, 0])],
+                                           [0, 0, self.dt * self.my_kf.x[3, 0] * math.cos(self.my_kf.x[2, 0]),
+                                            self.dt * math.sin(self.my_kf.x[2, 0])],
+                                           [0, 0, 0, 0],
+                                           [0, 0, 0, 0]])
+
             # PREDICTION
             self.my_kf.predict()
-            #print("X-:\n", self.my_kf.x)
-            
+            # print("X-:\n", self.my_kf.x)
+
             # UPDATE
             self.my_kf.update(z, HJacobian_at, hx, args=(self.anchor), hx_args=(self.anchor))
-            
+
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
-            
-            #print("X+:\n", self.my_kf.x)
 
-            #print("EKF per round takes %.6f s" % (time.time() - start_t))
+            # print("X+:\n", self.my_kf.x)
+            # print("EKF per round takes %.6f s" % (time.time() - start_t))
+            if self.visual and self.dense:
+                self.rt_show(odom_idx=-g)
 
 
     def smoother(self, lst, window_size=5, mode='conv'):
@@ -633,10 +643,15 @@ class EKF_Fusion():
             plt.show()
         
         
-    def rt_show(self, t_limit=0.85):
+    def rt_show(self, odom_idx=-1, t_limit=0.85, mark_size=20):
         start_t = time.time()
-        #u, v, w = self.odom_quat[0], self.odom_quat[1], self.odom_quat[2]
-        
+        if self.dense:
+            traj = self.path_dense
+        else:
+            traj = self.path
+        traj_fuse = np.asarray(self.xs)
+        u, v, w = self.U[-1], self.V[-1], self.W[-1]
+
         self.handle_scat.set_alpha(.2)
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
@@ -648,10 +663,9 @@ class EKF_Fusion():
         if self.rssi_list3:
             self.cir3.remove()
 
-        self.handle_scat = self.ax21.scatter([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]], color='b', marker='o', alpha=.9, label='MIO')
-        self.handle_arrw = self.ax21.quiver([self.path[-1][0]], [self.path[-1][1]], [self.path[-1][2]],
-            self.U, self.V, self.W, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter([self.xs[-1][0, 0]], [self.xs[-1][1, 0]], [0.], color='r', marker='o', alpha=.9, label='LoRa-MIO')
+        self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
+        self.handle_arrw = self.ax21.quiver([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], u, v, w, color='cyan', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
+        self.handle_scat_ekf = self.ax21.scatter([traj_fuse[-1][0, 0]], [traj_fuse[-1][1, 0]], [0.], s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
@@ -673,7 +687,7 @@ class EKF_Fusion():
             circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
             self.cir3 = self.ax21.add_patch(circle3)
             art3d.pathpatch_2d_to_3d(circle3, z=0, zdir="z")
-        
+
         self.ax22.clear()
         self.ax22.set_facecolor('white')
         self.ax22.grid(False)
@@ -689,7 +703,7 @@ class EKF_Fusion():
             self.ax22.plot(self.rssi_list3, 'cyan', alpha=.5, label='RX 3')
         if self.anchor:
             self.ax22.legend(loc='lower left')
-        
+
         if self.blit:
             # restore background
             self.fig2.canvas.restore_region(self.ax1background)
@@ -708,33 +722,33 @@ class EKF_Fusion():
             self.fig2.canvas.draw()
         
         self.fig2.canvas.flush_events()
-    
+
         stop_t = time.time() - start_t
         print("Elapsed time of VISUALISATION = ", stop_t)
         # Constrain PLOT time to avoid msg Overflow
         if stop_t > t_limit:
             self.fig2.savefig("live_rx.png")
             self.reset_view()
-            self.set_view(self.path[-1][0], self.path[-1][1], self.path[-1][2], self.U, self.V, self.W, self.xs[-1][0, 0], self.xs[-1][1, 0], 0.)
+            self.set_view(traj[odom_idx][0], traj[odom_idx][1], traj[odom_idx][2], u, v, w, traj_fuse[-1][0, 0], traj_fuse[-1][1, 0], 0.)
         
-    def set_view(self, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
+    def set_view(self, mark_size=20, x=0, y=0, z=0, u=1, v=0, w=0, X=0, Y=0, Z=0):
         
         self.ax21.view_init(elev=75., azim=-75)
         self.ax21.set_title("REAL-TIME TRAJECTORY", fontweight='bold', fontsize=9, pad=-5.0)
         self.ax21.grid(True)
+        self.ax21.set_facecolor('white')
         self.ax21.set_xlabel('X Axis (m)')
         self.ax21.set_ylabel('Y Axis (m)')
         self.ax21.set_zlabel('Z Axis (m)')
-        
         '''
         self.ax21.set_xlim(-2, 2)
         self.ax21.set_ylim(-2, 2)
         self.ax21.set_zlim(-2, 2)
         '''
         quiv_len = np.sqrt(u**2 + v**2 + w**2)
-        self.handle_scat = self.ax21.scatter(x, y, z, color='b', marker='o', alpha=.9, label='MIO')
+        self.handle_scat = self.ax21.scatter(x, y, z, s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, color='r', marker='o', alpha=.9, label='LoRa-MIO')
+        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         self.ax21.legend(loc='upper left')
 
         # Show RXs

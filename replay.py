@@ -102,12 +102,12 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
 
 
 class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
-    def __init__(self, anchor, dt=0.1, dim_x=5, visual=True):
+    def __init__(self, anchor, dt=0.1, dim_x=5, visual=True, dense=False):
         if type(anchor) != int or anchor < 0:
             print("Number of anchor should be integer no less than 0")
             raise TypeError
 
-        super().__init__(anchor=anchor, dim_x=dim_x, dim_z=3 + anchor, dt=dt, visual=visual)
+        super().__init__(anchor=anchor, dim_x=dim_x, dim_z=3 + anchor, dt=dt, visual=visual, dense=dense)
 
         # State Transition Martrix: F
         self.my_kf.F = eye(5)
@@ -222,15 +222,15 @@ class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
         return x_pk, Pk_p
 
 
-    def rt_show(self):
-        super(EKF_Fusion_MultiRX_AngularV, self).rt_show(t_limit=100.)
+    def rt_show(self, odom_idx=-1, t_limit=100., mark_size=20):
+        super(EKF_Fusion_MultiRX_AngularV, self).rt_show(odom_idx=odom_idx, t_limit=t_limit, mark_size=mark_size)
         pass
 
 
 
 class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
-    def __init__(self, anchor, dim_x=5, dt=0.1, visual=True):
-        super().__init__(anchor=anchor, dim_x=dim_x, dt=dt, visual=visual)
+    def __init__(self, anchor, dim_x=5, dt=0.1, visual=True, dense=False):
+        super().__init__(anchor=anchor, dim_x=dim_x, dt=dt, visual=visual, dense=dense)
         # TWEEK PARAMS
         self.my_kf.x = np.array([0., 0., 0.2, -0.2, 0.]).reshape(-1, 1)
         self.my_kf.P = np.diag(np.array([1., 1., 0.1, 0.1, 0.0001]))
@@ -308,9 +308,9 @@ class EKF_Fusion_PosVel(EKF_Fusion_MultiRX_AngularV):
 
 
 class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
-    def __init__(self, anchor, dt=0.1, visual=True):
+    def __init__(self, anchor, dt=0.1, visual=True, dense=False):
         # Added Acceleration, a, as 6th state
-        super().__init__(anchor=anchor, dt=dt, dim_x=6, visual=visual)
+        super().__init__(anchor=anchor, dt=dt, dim_x=6, visual=visual, dense=dense)
         # State Transition Martrix: F
         self.my_kf.F = eye(6)
 
@@ -402,9 +402,9 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
 
 
 class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
-    def __init__(self, anchor, dt=0.1, visual=True):
+    def __init__(self, anchor, dt=0.1, visual=True, dense=False):
         # Xk = [x, y, theta]
-        super().__init__(anchor=anchor, dt=dt, dim_x=3, visual=visual)
+        super().__init__(anchor=anchor, dt=dt, dim_x=3, visual=visual, dense=dense)
         # State Transition Martrix: F
         self.my_kf.F = eye(3)
 
@@ -451,6 +451,8 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             self.xs.append(self.my_kf.x)
             #print("X+:\n", self.my_kf.x)
             # print("EKF per round takes %.6f s" % (time.time() - start_t))
+            if self.visual and self.dense:
+                self.rt_show(odom_idx=-g, mark_size=10)
 
 
 
@@ -467,7 +469,7 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
 
-    ekf = EKF_Origin(anchor=1)
+    ekf = EKF_Origin(anchor=1, dense=False)
     #ekf = EKF_Fusion_ConstantA(anchor=1)
     #ekf = EKF_Fusion_PosVel(anchor=0)
 

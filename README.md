@@ -14,9 +14,9 @@ Two rounds of left-hand search with Particle Filter:
 
 ### Extended Kalman Filter
 
-Two rounds of left-hand search with EKF which uses absolute 2D poses as measurement:
+Two rounds of left-hand search with EKF which uses absolute 2D poses as measurement (fine-grained plot with 10Hz refresh rate):
 
-![live_plot](https://github.com/zdai257/LoRaRX/blob/main/demo1.png)
+![live_plot](https://github.com/zdai257/LoRaRX/blob/main/demo10.png)
 
 THREE rounds of left-Hand Search using the same model as above. Path constraining effect is explicit:
 
