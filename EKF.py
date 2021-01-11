@@ -443,6 +443,7 @@ class EKF_Fusion():
         self.rssi_list.extend(rssis)
         if self.anchor:
             self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
+        # TODO Anchor 2,3 not smoothed yet
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:
@@ -559,7 +560,19 @@ class EKF_Fusion():
                 self.rt_show(odom_idx=-g)
 
 
-    def smoother(self, lst, window_size=5, mode='conv'):
+    def rms_traj(self):
+        traj1 = [self.path_dense[i][0:2] for i in range(len(self.path_dense))]
+        traj1 = np.asarray(traj1)
+        traj2 = [self.xs[i][0:2, 0] for i in range(len(self.xs))]
+        traj2 = np.asarray(traj2)
+
+        sqr_sum = 0.
+        for row in range(traj2.shape[0]):
+            sqr_sum += (traj1[row, 0] - traj2[row, 0])**2 + (traj1[row, 1] - traj2[row, 1])**2
+        rmse = sqrt(sqr_sum / traj2.shape[0])
+        return rmse
+
+    def smoother(self, lst, g=10, window_size=5, mode='conv'):
 
         if mode == 'conv':
             if len(lst) >= window_size:
@@ -576,6 +589,13 @@ class EKF_Fusion():
                 return y[-2]
             else:
                 return lst[-1]
+        elif mode == 'ave10':
+            if len(lst) > 3:
+                lst10 = [lst[-1]] * (11 - g) + [lst[-2]] * 10 + [lst[-3]] * 10 + [lst[-4]] * (g - 1)
+                ave_rssi = sum(lst10) / len(lst10)
+            else:
+                ave_rssi = lst[-1]
+            return float(ave_rssi)
         else:
             if len(lst) > 3:
                 ave_rssi = 0.6 * lst[-1] + 0.25 * lst[-2] + 0.15 * lst[-3]
@@ -664,7 +684,7 @@ class EKF_Fusion():
             self.cir3.remove()
 
         self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
-        self.handle_arrw = self.ax21.quiver([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], u, v, w, color='cyan', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
+        self.handle_arrw = self.ax21.quiver([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], u, v, w, color='cyan', length=2., arrow_length_ratio=0.4, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter([traj_fuse[-1][0, 0]], [traj_fuse[-1][1, 0]], [0.], s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)

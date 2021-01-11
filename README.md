@@ -20,6 +20,4 @@ Two rounds of left-hand search with EKF which uses absolute 2D poses as measurem
 
 THREE rounds of left-Hand Search using the same model as above. Path constraining effect is explicit:
 
-![left3](https://github.com/zdai257/LoRaRX/blob/main/demo2.png)
-
 ![left3_fine](https://github.com/zdai257/LoRaRX/blob/main/demo20.png)

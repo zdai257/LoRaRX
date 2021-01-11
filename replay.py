@@ -423,7 +423,10 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             final_xyZ = [self.abs_x[-g], self.abs_y[-g], self.abs_yaw[-g]]
             # Populate ONE Rssi for a 'gap' of Poses
             if self.anchor:
-                final_xyZ.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
+                #final_xyZ.append(float(self.smoothed_rssi_list[-1]))
+                # Smooth RSSIs at 10Hz with (30) samples
+                self.smoothed_rssi_list[-1] = self.smoother(self.rssi_list, g=g, mode='ave10')
+                final_xyZ.append(self.smoothed_rssi_list[-1])
             if self.rssi_list2:
                 final_xyZ.append(self.smoother(self.rssi_list2))
             if self.rssi_list3:
@@ -514,6 +517,7 @@ if __name__=="__main__":
 
                 #plt.pause(0.01)
                 time.sleep(.001)
+                print("RMSE between traj1 & 2 = %.4f m" % ekf.rms_traj())
 
             ekf.fig2.savefig("replay_ekf.png")
 
