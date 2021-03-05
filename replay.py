@@ -437,9 +437,13 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             # TODO Add data integraty check: X+ value explodes
 
             # Refresh Measurement noise R
-            self.my_kf.R[0, 0] = 0.5  # ABS_X
-            self.my_kf.R[1, 1] = 0.5  # ABS_Y
-            self.my_kf.R[2, 2] = 0.01  # ABS_YAW
+            rot_z = self.final_list[-g][-1]
+            #print(-abs(rot_z))
+            R_scalar = 10 * (-math.e ** (-0.2 * abs(rot_z)) + 1.)
+            print(R_scalar)
+            self.my_kf.R[0, 0] = 0.25 * 1  #0.5   # ABS_X
+            self.my_kf.R[1, 1] = 0.25 * 1  #0.5   # ABS_Y
+            self.my_kf.R[2, 2] = 1.5 * R_scalar  #0.01  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 0.1 * SIGMA**2
 

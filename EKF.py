@@ -450,7 +450,7 @@ class EKF_Fusion():
             self.rssi_list3.append(rssis[2])
 
         for idx in range(0, len(msg_list), len_pose):
-            final_pose = msg_list[idx:idx + 6]
+            final_pose = msg_list[idx:idx + 6]  # UNIT: m/s, m/s, m/s, deg/s, deg/s, deg/s
             sigma_pose = msg_list[idx + 6:idx + 12]
             # print(final_pose)
             # print(sigma_pose)
