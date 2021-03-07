@@ -15,7 +15,7 @@ import mpl_toolkits.mplot3d.art3d as art3d
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import matplotlib
-#matplotlib.use('agg')
+matplotlib.use('agg')
 
 
 # LoRa RX Coordinates

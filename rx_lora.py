@@ -1,6 +1,10 @@
 #!/usr/bin/python3
 # -*- coding: UTF-8 -*-
 
+import matplotlib
+matplotlib.use('Agg')
+import os
+from os.path import join
 import RPi.GPIO as GPIO
 import serial
 import time
@@ -9,11 +13,12 @@ import datetime
 import struct
 import string
 import math
-from EKF import EKF_Fusion
-from replay import EKF_Fusion_MultiRX, EKF_Fusion_MultiRX_ZYaw, EKF_Fusion_MultiRX_AngularV
+#from EKF import EKF_Fusion
+#from replay import EKF_Origin
 
 
-ekf = EKF_Fusion_MultiRX_AngularV(anchor=1, dt=0.1, visual=False)
+
+#ekf = EKF_Origin(anchor=1, dt=0.1, visual=False)
 
 def UtcNow():
     now = datetime.datetime.utcnow()
@@ -69,6 +74,10 @@ log_filename = UtcNow().replace(':', '_')
 log_filename = log_filename.replace('.', '_')
 log_filename = log_filename.replace(' ', '_')
 log_filename += '.txt'
+
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+log_filename = join(BASE_DIR, 'data_log', log_filename)
+
 print(log_filename)
 
 
@@ -171,10 +180,9 @@ try :
                         
                         msg_list.append(rssi)
                         try:
-                            # Visulisation
-                            #parse_msg(msg_list, rssi, visual=True)
+                            print('\n')
                             # EKF
-                            ekf.new_measure(*msg_list)
+                            #ekf.new_measure(*msg_list)
                         except:
                             print("EKF FAILED\n")
                             
