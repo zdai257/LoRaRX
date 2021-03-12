@@ -15,7 +15,7 @@ import mpl_toolkits.mplot3d.art3d as art3d
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import matplotlib
-matplotlib.use('agg')
+#matplotlib.use('agg')
 
 
 # LoRa RX Coordinates
@@ -345,10 +345,11 @@ class Simu(object):
 
 
 class EKF_Fusion():
-    def __init__(self, dt=0.1, anchor=1, dim_x=4, dim_z=3, blit=True, visual=False, dense=False):
+    def __init__(self, dt=0.1, anchor=1, dim_x=4, dim_z=3, ismdn=False, blit=True, visual=False, dense=False):
         self.visual = visual
         self.dense = dense
         self.anchor = anchor
+        self.ismdn = ismdn
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
         [[1., 0, 0, 0],
@@ -430,7 +431,9 @@ class EKF_Fusion():
 
     def new_measure(self, *args, **kwargs):
         start_t = time.time()
-        len_pose = 12
+        len_pose = 6
+        if self.ismdn:
+            len_pose = 12
         gap = 0
         msg_list = []
         rssis = []
@@ -450,8 +453,11 @@ class EKF_Fusion():
             self.rssi_list3.append(rssis[2])
 
         for idx in range(0, len(msg_list), len_pose):
-            final_pose = msg_list[idx:idx + 6]  # UNIT: m/s, m/s, m/s, deg/s, deg/s, deg/s
-            sigma_pose = msg_list[idx + 6:idx + 12]
+            final_pose = msg_list[idx:idx + len_pose]  # UNIT: m/s, m/s, m/s, deg/s, deg/s, deg/s
+            if self.ismdn:
+                sigma_pose = msg_list[idx + 6:idx + 12]
+            else:
+                sigma_pose = []
             # print(final_pose)
             # print(sigma_pose)
             self.final_list.append(final_pose)

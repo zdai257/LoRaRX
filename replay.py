@@ -102,12 +102,12 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
 
 
 class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
-    def __init__(self, anchor, dt=0.1, dim_x=5, visual=True, dense=False):
+    def __init__(self, anchor, dt=0.1, dim_x=5, ismdn=False, visual=True, dense=False):
         if type(anchor) != int or anchor < 0:
             print("Number of anchor should be integer no less than 0")
             raise TypeError
 
-        super().__init__(anchor=anchor, dim_x=dim_x, dim_z=3 + anchor, dt=dt, visual=visual, dense=dense)
+        super().__init__(anchor=anchor, dim_x=dim_x, dim_z=3 + anchor, dt=dt, ismdn=ismdn, visual=visual, dense=dense)
 
         # State Transition Martrix: F
         self.my_kf.F = eye(5)
@@ -402,9 +402,9 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
 
 
 class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
-    def __init__(self, anchor, dt=0.1, visual=True, dense=False):
+    def __init__(self, anchor, dt=0.1, ismdn=False, visual=True, dense=False):
         # Xk = [x, y, theta]
-        super().__init__(anchor=anchor, dt=dt, dim_x=3, visual=visual, dense=dense)
+        super().__init__(anchor=anchor, dt=dt, dim_x=3, ismdn=ismdn, visual=visual, dense=dense)
         # State Transition Martrix: F
         self.my_kf.F = eye(3)
 
@@ -476,7 +476,7 @@ def synthetic_rssi(data_len, period=1., Amp=20., phase=0., mean=-43., noiseAmp=0
 
 if __name__=="__main__":
 
-    ekf = EKF_Origin(anchor=1, dense=False)
+    ekf = EKF_Origin(anchor=1, ismdn=True, dense=False)
     #ekf = EKF_Fusion_ConstantA(anchor=1)
     #ekf = EKF_Fusion_PosVel(anchor=0)
 
