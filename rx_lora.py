@@ -81,7 +81,7 @@ log_filename = log_filename.replace(' ', '_')
 log_filename += '.txt'
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-log_filename = join(BASE_DIR, 'data_log', log_filename)
+log_filename = join(BASE_DIR, 'LoRaRX', 'data_log', log_filename)
 
 print(log_filename)
 
