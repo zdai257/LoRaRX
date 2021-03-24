@@ -15,46 +15,31 @@ from replay import EKF_Origin
 
 def main():
 
-    ekf = EKF_Origin(anchor=1, ismdn=False, dense=False)
+    ekf = EKF_Origin(anchor=5, ismdn=False, dense=False)
 
     # Sync Multiple RX RSSIs and Replay
     RxIP_lst = ['93', '94', '95', '96', '97']
 
-    for ip in RxIP_lst:
-      for filename in os.listdir(join('TEST', 'test0323', ip)):
-        if filename.startswith('2021-03-23_14_09'):
-            with open(join('TEST', 'test0323', ip, filename), "r") as f:
+    for filename in os.listdir('TEST'):
+        if filename.endswith('.txt'):
+            with open(join('TEST', filename), "r") as f:
                 recv_list = f.readlines()
 
             # Add synthetic RSSIs
             data_len = len(recv_list)
-            if 0:
-                rssi_y2 = synthetic_rssi(data_len=data_len, period=1)
-                rssi_y3 = synthetic_rssi(data_len=data_len, period=1, Amp=15, phase=-math.pi / 2, noiseAmp = 0.3, mean = -45)
-            else:
-                rssi_y2, rssi_y3 = [], []
-            print(data_len)
             rssi_idx = 0
 
             for item in recv_list:
                 rssi_list = []
-
                 parts = item.split(';')
                 t = parts[0]
+
                 msgs = parts[1]
                 vals = msgs.split(',')
-                rssi1 = int(parts[2])
-                if rssi1 < -90 or rssi1 > 0:
-                    print("Corrupted RSSI val")
-                    break
 
-                # Append RXs measurements
-                rssi_list.append(rssi1)
-                if rssi_y2:
-                    rssi_list.append(rssi_y2[rssi_idx])
-                if rssi_y3:
-                    rssi_list.append(rssi_y3[rssi_idx])
-                rssi_idx += 1
+                for rssi_id in range(2, 2 + ekf.anchor):
+                    rssi0 = int(parts[rssi_id])
+                    rssi_list.append(rssi0)
 
                 msg_list = [float(i) for i in vals]
                 if ekf.anchor:

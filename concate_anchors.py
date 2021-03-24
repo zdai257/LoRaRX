@@ -1,5 +1,6 @@
 import os
 from os.path import join
+import numpy as np
 from datetime import datetime
 import shutil
 
@@ -20,8 +21,12 @@ for mline in master_list:
     master_t_obj = datetime.strptime(master_t, '%Y-%m-%d %H:%M:%S.%f')
     master_t_stp = datetime.timestamp(master_t_obj)
     #print(master_t_stp)
+    master_rssi = int(mparts[2])
 
-    line_append = ''
+    line_append = np.zeros(5, dtype=int)
+    line_append[MasterIP] = master_rssi
+
+    str_rssis = ''
     for ip in RxIP_lst:
         for filename in os.listdir(join('TEST', 'test0323', ip)):
             if filename.startswith(DestFile[:15]) and ip != RxIP_lst[MasterIP]:
@@ -37,15 +42,18 @@ for mline in master_list:
                     t = parts[0]
                     t_obj = datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f')
                     t_stp = datetime.timestamp(t_obj)
-                    if abs(t_stp - master_t_stp) < 0.7:
+                    if abs(t_stp - master_t_stp) < 0.8:  # Threshold for timestamp matching (s)
                         rssi0 = int(parts[2])
                         if rssi0 < -90 or rssi0 > 0:
                             print("Corrupted RSSI val")
                             rssi0 = 99
-                        line_append = line_append + '; ' + str(rssi0)
+                        line_append[RxIP_lst.index(ip)] = rssi0
 
-                        if ip == RxIP_lst[-1]:
-                            with open(join('TEST', DestFile + '_left2.txt'), 'a+') as master_f:
-                                master_f.write(mline[:-1] + line_append + '\n')
-                                master_f.flush()
-                                break
+    with open(join('TEST', DestFile + '_left2.txt'), 'a+') as master_f:
+        for val in line_append:
+            str_rssis = str_rssis + '; ' + str(val)
+        str_line = mparts[0] + ';' + mparts[1] + str_rssis + '\n'
+        master_f.write(str_line)
+        master_f.flush()
+
+

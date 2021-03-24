@@ -443,10 +443,11 @@ class EKF_Fusion():
             rssis = msg_list[-self.anchor:]
             msg_list = msg_list[:-self.anchor]
 
+        # TODO Append rssis for anchors and smooth
         self.rssi_list.extend(rssis)
         if self.anchor:
             self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
-        # TODO Anchor 2,3 not smoothed yet
+
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:
