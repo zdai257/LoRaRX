@@ -422,6 +422,10 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             # Get Measurement [ABS_X, ABS_Y, ABS_YAW('Rad')]
             final_xyZ = [self.abs_x[-g], self.abs_y[-g], self.abs_yaw[-g]]
             # Populate ONE Rssi for a 'gap' of Poses
+            for anchor_idx in range(0, self.anchor):
+                final_xyZ.append(self.rssi_dict_smth[anchor_idx][-1])
+
+            '''
             if self.anchor:
                 #final_xyZ.append(float(self.smoothed_rssi_list[-1]))
                 # Smooth RSSIs at 10Hz with (30) samples
@@ -431,6 +435,7 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
                 final_xyZ.append(self.smoother(self.rssi_list2))
             if self.rssi_list3:
                 final_xyZ.append(self.smoother(self.rssi_list3))
+            '''
 
             z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
             #print("Measurement z: ", z)

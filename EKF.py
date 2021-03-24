@@ -365,6 +365,8 @@ class EKF_Fusion():
         self.sigma_list = []
         self.angle = 0
         self.rssi_list, self.smoothed_rssi_list, self.rssi_list2, self.rssi_list3 = [], [], [], []
+        self.rssi_dict = {0: [], 1: [], 2: [], 3: [], 4: []}
+        self.rssi_dict_smth = self.rssi_dict
         self.vec = np.array([[0], [1], [0], [0]], dtype=float)
         self.odom_quat = self.vec
         
@@ -376,6 +378,8 @@ class EKF_Fusion():
         self.handle_arrw_ekf = None
         self.ax1background = None
         self.ax2background = None
+        self.cir_lst = []
+        self.cir_dict = {0: [], 1: [], 2: [], 3: [], 4: []}
 
         self.fig2 = plt.figure(figsize=(8, 7))
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
@@ -444,14 +448,18 @@ class EKF_Fusion():
             msg_list = msg_list[:-self.anchor]
 
         # TODO Append rssis for anchors and smooth
+        for anchor_idx in range(0, self.anchor):
+            self.rssi_dict[anchor_idx].append(rssis[anchor_idx])
+            self.rssi_dict_smth[anchor_idx].append(self.smoother(self.rssi_dict[anchor_idx]))
+        '''
         self.rssi_list.extend(rssis)
         if self.anchor:
             self.smoothed_rssi_list.append(self.smoother(self.rssi_list))
-
         if self.anchor >= 2:
             self.rssi_list2.append(rssis[1])
         if self.anchor >= 3:
             self.rssi_list3.append(rssis[2])
+        '''
 
         for idx in range(0, len(msg_list), len_pose):
             final_pose = msg_list[idx:idx + len_pose]  # UNIT: m/s, m/s, m/s, deg/s, deg/s, deg/s
@@ -529,12 +537,17 @@ class EKF_Fusion():
             # print(final_xy)
 
             # Populate ONE Rssi for a 'gap' of Poses
+            for anchor_idx in range(0, self.anchor):
+                final_xy.append(self.rssi_dict_smth[anchor_idx][-1])
+
+            '''
             if self.anchor:
                 final_xy.append(float(self.smoothed_rssi_list[-1]))  # Utilize Smoothed RSSI for Fusion
             if self.rssi_list2:
                 final_xy.append(float(self.rssi_list2[-1]))
             if self.rssi_list3:
                 final_xy.append(float(self.rssi_list3[-1]))
+            '''
 
             z = np.asarray(final_xy, dtype=float).reshape(-1, 1)
             # print("Measurement:\n", z)
@@ -683,12 +696,8 @@ class EKF_Fusion():
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
         # Remove Range Circle
-        if self.anchor:
-            self.cir1.remove()
-        if self.rssi_list2:
-            self.cir2.remove()
-        if self.rssi_list3:
-            self.cir3.remove()
+        for anchor_idx in range(0, self.anchor):
+            self.cir_dict[anchor_idx].remove()
 
         self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], u, v, w, color='cyan', length=2., arrow_length_ratio=0.4, linewidths=3., alpha=.7)
@@ -699,21 +708,12 @@ class EKF_Fusion():
         self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])
 
         # Plot Range
-        if self.anchor:
-            radius = 10 ** ((self.smoothed_rssi_list[-1] + BETA) / ALPHA)
-            circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
-            self.cir1 = self.ax21.add_patch(circle1)
-            art3d.pathpatch_2d_to_3d(circle1, z=0, zdir="z")
-        if self.rssi_list2:
-            radius = 10 ** ((self.rssi_list2[-1] + BETA) / ALPHA)
-            circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
-            self.cir2 = self.ax21.add_patch(circle2)
-            art3d.pathpatch_2d_to_3d(circle2, z=0, zdir="z")
-        if self.rssi_list3:
-            radius = 10 ** ((self.rssi_list3[-1] + BETA) / ALPHA)
-            circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.4, linewidth=0.5)
-            self.cir3 = self.ax21.add_patch(circle3)
-            art3d.pathpatch_2d_to_3d(circle3, z=0, zdir="z")
+        for anchor_idx in range(0, self.anchor):
+            radius = 10 ** ((self.rssi_dict_smth[anchor_idx][-1] + BETA) / ALPHA)
+            circle0 = plt.Circle((R1[anchor_idx, 0], R1[anchor_idx, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
+            cir0 = self.ax21.add_patch(circle0)
+            self.cir_dict[anchor_idx] = cir0
+            art3d.pathpatch_2d_to_3d(circle0, z=0, zdir="z")
 
         self.ax22.clear()
         self.ax22.set_facecolor('white')
@@ -721,6 +721,12 @@ class EKF_Fusion():
         self.ax22.set_title("REAL-TIME LORA RSSI", fontweight='bold', fontsize=9, pad=-2)
         self.ax22.set_ylabel("RSSI (dBm)", labelpad=-3)
         #self.ax22.set_ylim(-90, -10)
+
+        clr_lst = ['coral', 'b', 'cyan', 'grey', 'green']
+        for anchor_idx in range(0, self.anchor):
+            self.ax22.plot(self.rssi_dict_smth[anchor_idx], color=clr_lst[anchor_idx], alpha=.7, label='RX{}'.format(anchor_idx))
+
+        '''
         if self.anchor:
             self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
             self.ax22.plot(self.smoothed_rssi_list, 'green', label='RX Cmd Smoothed')
@@ -730,6 +736,7 @@ class EKF_Fusion():
             self.ax22.plot(self.rssi_list3, 'cyan', alpha=.5, label='RX 3')
         if self.anchor:
             self.ax22.legend(loc='lower left')
+        '''
 
         if self.blit:
             # restore background
@@ -783,22 +790,21 @@ class EKF_Fusion():
             self.ax21.scatter(R1[int(anc), 0], R1[int(anc), 1], R1[int(anc), 2], marker='1', s=100, color='magenta')
 
         # Init Range Display
-        if not self.rssi_list:
-            radius = .5
-        else:
-            radius = self.rssi_list[-1]
-        circle1 = plt.Circle((R1[0, 0], R1[0, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
-        self.cir1 = self.ax21.add_artist(circle1)
-        circle2 = plt.Circle((R1[1, 0], R1[1, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
-        self.cir2 = self.ax21.add_artist(circle2)
-        circle3 = plt.Circle((R1[2, 0], R1[2, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
-        self.cir3 = self.ax21.add_artist(circle3)
+        for anchor_idx in range(0, self.anchor):
+            if not self.rssi_dict[anchor_idx]:
+                radius = .5
+            else:
+                radius = self.rssi_dict[anchor_idx][-1]
+
+            circle0 = plt.Circle((R1[anchor_idx, 0], R1[anchor_idx, 1]), radius, color='g', fill=False, alpha=.1, linewidth=0.5)
+            cir0 = self.ax21.add_artist(circle0)
+            self.cir_dict[anchor_idx] = cir0
         
         
     def reset_view(self):
-        self.rssi_list = []
-        self.rssi_list2 = []
-        self.rssi_list3 = []
+        for anchor_idx in range(0, self.anchor):
+            self.rssi_dict[anchor_idx] = []
+            self.rssi_dict_smth[anchor_idx] = []
         self.ax21.clear()
 
 
