@@ -7,12 +7,6 @@ from replay import EKF_Origin
 
 
 
-
-
-
-
-
-
 def main():
 
     ekf = EKF_Origin(anchor=5, ismdn=False, dense=False)
@@ -62,4 +56,3 @@ def main():
 if __name__=="__main__":
 
     main()
-

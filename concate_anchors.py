@@ -5,13 +5,24 @@ from datetime import datetime
 import shutil
 
 
-DestFile = '2021-03-23_14_09_23_021876'
+#DestFile = '2021-03-23_14_09_23_021876'
+#DestFile = '2021-03-23_14_37_36_379721'
+
+#DestFile = '2021-03-24_15_22_25_362772'
+#DestFile = '2021-03-24_15_32_54_355550'
+DestFile = '2021-03-24_15_43_37_188576'
+#DestFile = '2021-03-24_15_58_21_728599'
+#DestFile = '2021-03-24_16_04_17_589116'
+
+DirDate = 'test0324'
+PathName = 'LeftVicon2'
+
 RxIP_lst = ['93', '94', '95', '96', '97']
-MasterIP = 0
+MasterIP = 4
 #shutil.copyfile(join('TEST', 'test0323', RxIP_lst[MasterIP], DestFile+'.txt'), join('TEST', DestFile + '_left2.txt'))
 
 
-mf = open(join('TEST', 'test0323', RxIP_lst[MasterIP], DestFile+'.txt'))
+mf = open(join('TEST', DirDate, RxIP_lst[MasterIP], DestFile+'.txt'))
 master_list = mf.readlines()
 mf.close()
 
@@ -28,9 +39,9 @@ for mline in master_list:
 
     str_rssis = ''
     for ip in RxIP_lst:
-        for filename in os.listdir(join('TEST', 'test0323', ip)):
+        for filename in os.listdir(join('TEST', DirDate, ip)):
             if filename.startswith(DestFile[:15]) and ip != RxIP_lst[MasterIP]:
-                with open(join('TEST', 'test0323', ip, filename), "r") as f:
+                with open(join('TEST', DirDate, ip, filename), "r") as f:
                     recv_list = f.readlines()
 
                 # Add synthetic RSSIs
@@ -49,7 +60,7 @@ for mline in master_list:
                             rssi0 = 99
                         line_append[RxIP_lst.index(ip)] = rssi0
 
-    with open(join('TEST', DestFile + '_left2.txt'), 'a+') as master_f:
+    with open(join('TEST', DestFile + '_' + PathName + '.txt'), 'a+') as master_f:
         for val in line_append:
             str_rssis = str_rssis + '; ' + str(val)
         str_line = mparts[0] + ';' + mparts[1] + str_rssis + '\n'
