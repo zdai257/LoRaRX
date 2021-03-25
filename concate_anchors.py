@@ -15,7 +15,7 @@ DestFile = '2021-03-24_15_43_37_188576'
 #DestFile = '2021-03-24_16_04_17_589116'
 
 DirDate = 'test0324'
-PathName = 'LeftVicon2'
+PathName = 'Left3'
 
 RxIP_lst = ['93', '94', '95', '96', '97']
 MasterIP = 4
@@ -34,7 +34,8 @@ for mline in master_list:
     #print(master_t_stp)
     master_rssi = int(mparts[2])
 
-    line_append = np.zeros(5, dtype=int)
+    default_dbm = -65
+    line_append = default_dbm * np.ones(5, dtype=int)
     line_append[MasterIP] = master_rssi
 
     str_rssis = ''
@@ -44,20 +45,27 @@ for mline in master_list:
                 with open(join('TEST', DirDate, ip, filename), "r") as f:
                     recv_list = f.readlines()
 
-                # Add synthetic RSSIs
                 data_len = len(recv_list)
                 # print(data_len)
 
+                rssi_pre = [default_dbm]
                 for item in recv_list:
                     parts = item.split(';')
                     t = parts[0]
                     t_obj = datetime.strptime(t, '%Y-%m-%d %H:%M:%S.%f')
                     t_stp = datetime.timestamp(t_obj)
-                    if abs(t_stp - master_t_stp) < 0.8:  # Threshold for timestamp matching (s)
+                    # Threshold for timestamp matching (s)
+                    if abs(t_stp - master_t_stp) < 0.8:
                         rssi0 = int(parts[2])
                         if rssi0 < -90 or rssi0 > 0:
                             print("Corrupted RSSI val")
-                            rssi0 = 99
+                            if len(rssi_pre) > 3:
+                                rssi0 = sum(rssi_pre) / len(rssi_pre)
+                            else:
+                                rssi0 = rssi_pre[-1]
+
+                        else:
+                            rssi_pre.append(int(parts[2]))
                         line_append[RxIP_lst.index(ip)] = rssi0
 
     with open(join('TEST', DestFile + '_' + PathName + '.txt'), 'a+') as master_f:

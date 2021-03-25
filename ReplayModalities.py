@@ -102,8 +102,10 @@ def main():
                 time.sleep(.001)
                 print("RMSE between traj1 & 2 = %.4f m" % ekf.rms_traj())
                 recv_idx += 1
+
                 if recv_idx > 105:
                     break
+
 
             ekf.fig2.savefig("replay_ekf.png")
 
