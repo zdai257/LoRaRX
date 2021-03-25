@@ -388,6 +388,7 @@ class EKF_Fusion():
         self.ax2background = None
         self.cir_lst = []
         self.cir_dict = {0: [], 1: [], 2: [], 3: [], 4: []}
+        self.clr_lst = ['coral', 'magenta', 'gold', 'darkolivegreen', 'limegreen']
 
         self.fig2 = plt.figure(figsize=(8, 7))
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
@@ -731,9 +732,8 @@ class EKF_Fusion():
         self.ax22.set_ylabel("RSSI (dBm)", labelpad=-3)
         #self.ax22.set_ylim(-90, -10)
 
-        clr_lst = ['coral', 'b', 'cyan', 'grey', 'green']
         for anchor_idx in range(0, self.anchor):
-            self.ax22.plot(self.rssi_dict_smth[anchor_idx], color=clr_lst[anchor_idx], alpha=.7, label='RX{}'.format(anchor_idx))
+            self.ax22.plot(self.rssi_dict_smth[anchor_idx], color=self.clr_lst[anchor_idx], alpha=.7, label='RX{}'.format(anchor_idx))
 
         '''
         if self.anchor:
@@ -743,9 +743,9 @@ class EKF_Fusion():
             self.ax22.plot(self.rssi_list2, 'b', alpha=.5, label='RX 2')
         if self.rssi_list3:
             self.ax22.plot(self.rssi_list3, 'cyan', alpha=.5, label='RX 3')
-        if self.anchor:
-            self.ax22.legend(loc='lower left')
         '''
+        if self.anchor:
+            self.ax22.legend(loc='lower left', prop={'size': 8})
 
         if self.blit:
             # restore background
@@ -796,7 +796,7 @@ class EKF_Fusion():
 
         # Show RXs
         for anc in range(0, self.anchor):
-            self.ax21.scatter(R1[int(anc), 0], R1[int(anc), 1], R1[int(anc), 2], marker='1', s=100, color='magenta')
+            self.ax21.scatter(R1[int(anc), 0], R1[int(anc), 1], R1[int(anc), 2], marker='1', s=100, color=self.clr_lst[anc])
 
         # Init Range Display
         for anchor_idx in range(0, self.anchor):

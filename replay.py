@@ -409,7 +409,7 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
         self.my_kf.F = eye(3)
 
         # TWEEK PARAMS
-        self.my_kf.x = np.array([-0.1, 0.1, 0.]).reshape(-1, 1)
+        self.my_kf.x = np.array([-0.1, -0.1, 0.]).reshape(-1, 1)
         # Error Cov of Initial State
         self.my_kf.P = np.diag(np.array([10.0, 10.0, 1.0]))
         # Process Noise Cov
@@ -422,7 +422,9 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             # Get Measurement [ABS_X, ABS_Y, ABS_YAW('Rad')]
             final_xyZ = [self.abs_x[-g], self.abs_y[-g], self.abs_yaw[-g]]
             # Populate ONE Rssi for a 'gap' of Poses
+            # Apply 'ave10' mode on every EKF iteration to smooth the path
             for anchor_idx in range(0, self.anchor):
+                self.rssi_dict_smth[anchor_idx][-1] = self.smoother(self.rssi_dict[anchor_idx], g=g, mode='ave10')
                 final_xyZ.append(self.rssi_dict_smth[anchor_idx][-1])
 
             '''
@@ -446,9 +448,9 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             #print(-abs(rot_z))
             R_scalar = 10 * (-math.e ** (-0.2 * abs(rot_z)) + 1.)
             print(R_scalar)
-            self.my_kf.R[0, 0] = 0.15 * 1  #0.5   # ABS_X
-            self.my_kf.R[1, 1] = 0.15 * 1  #0.5   # ABS_Y
-            self.my_kf.R[2, 2] = 1. * R_scalar  #0.01  # ABS_YAW
+            self.my_kf.R[0, 0] = 0.25 * 1  #0.5   # ABS_X
+            self.my_kf.R[1, 1] = 0.25 * 1  #0.5   # ABS_Y
+            self.my_kf.R[2, 2] = 1.5 * R_scalar  #0.01  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 0.1 * SIGMA**2
 
