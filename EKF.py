@@ -18,12 +18,20 @@ import matplotlib
 #matplotlib.use('agg')
 
 
-# LoRa RX Coordinates
+# LoRa RX Coordinates in order of Pi-IP: 93, 94, 95, 96, 97
+R1 = np.array([[-2., 10., 0.],
+               [12., 10., 0.],
+               [13., -1., 0.],
+               [5., -1.5, 0.],
+               [-5., 4., 0.]])
+'''
 R1 = np.array([[0., 0., 0.],
                [15., 5., 0.],
                [30., -22., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
+'''
+
 # Path Loss Model params
 ALPHA = -55#-45.712  # -28.57 * 1.6
 BETA = -5.06
@@ -670,7 +678,7 @@ class EKF_Fusion():
         y_gt = [item[0][1, 0] for item in self.track]
         
         fig1 = plt.figure()
-        self.ax1 = fig1.add_subplot(1,1,1)
+        self.ax1 = fig1.add_subplot(1, 1, 1)
         h1 = self.ax1.plot(x0, y0, 'b', label='Predicted')
         h2 = self.ax1.plot(x_gt, y_gt, 'r', label='GroundTruth')
         self.ax1.set_aspect('equal')
@@ -705,7 +713,8 @@ class EKF_Fusion():
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])
+        self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])
+        #self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])
 
         # Plot Range
         for anchor_idx in range(0, self.anchor):

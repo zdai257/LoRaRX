@@ -9,7 +9,7 @@ from replay import EKF_Origin
 
 def main():
 
-    ekf = EKF_Origin(anchor=5, ismdn=False, dense=False)
+    ekf = EKF_Origin(anchor=5, ismdn=False, dense=True)
 
     # Sync Multiple RX RSSIs and Replay
     RxIP_lst = ['93', '94', '95', '96', '97']
@@ -21,7 +21,8 @@ def main():
 
             # Add synthetic RSSIs
             data_len = len(recv_list)
-            rssi_idx = 0
+            print(data_len)
+            recv_idx = 0
 
             for item in recv_list:
                 rssi_list = []
@@ -44,8 +45,11 @@ def main():
                 # plt.pause(0.01)
                 time.sleep(.001)
                 print("RMSE between traj1 & 2 = %.4f m" % ekf.rms_traj())
+                recv_idx += 1
+                if recv_idx > 110:
+                    break
 
-            #ekf.fig2.savefig("replay_ekf.png")
+            ekf.fig2.savefig("replay_ekf.png")
 
     '''
             ekf.reset_view()
