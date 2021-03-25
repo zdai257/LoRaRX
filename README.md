@@ -1,23 +1,27 @@
-## Commander's LoRa RX: Location Log & Visualisation
+## Commander's LoRa RX: Location Fusion & Visualisation
 
 Replay data reception and Visualise path in a pack of 10 Odometry outputs by
 
 ```
-python3 rx_lora.py P2P 10
+python3 rx_lora.py LST 10
 ```
-
-### SIR Particle Filter
-
-Two rounds of left-hand search with Particle Filter:
-
-![pf_left2](https://github.com/zdai257/LoRaRX/blob/main/demo0.png)
 
 ### Extended Kalman Filter
 
-Two rounds of left-hand search with EKF which uses absolute 2D poses as measurement (fine-grained plot with 10Hz refresh rate):
+Three-round right-hand search:
 
-![left2_fine](https://github.com/zdai257/LoRaRX/blob/main/demo10.png)
+![left2_fine](https://github.com/zdai257/LoRaRX/blob/main/Trajectory/demo0324Left3.png)
 
-THREE rounds of left-Hand Search using the same model as above. Path constraining effect is explicit:
+Two-round right-hand search entering Vicon room:
 
-![left3_fine](https://github.com/zdai257/LoRaRX/blob/main/demo20.png)
+![left3_fine](https://github.com/zdai257/LoRaRX/blob/main/Trajectory/demo0324LeftVicon2.png)
+
+Two-round left-hand search entering Vicon room:
+
+![left3_fine](https://github.com/zdai257/LoRaRX/blob/main/Trajectory/demo0324RightVicon2.png)
+
+### SIR Particle Filter
+
+Two-round right-hand search using Particle Filter at 1Hz real-time refresh rate:
+
+![pf_left2](https://github.com/zdai257/LoRaRX/blob/main/Trajectory/demo0.png)

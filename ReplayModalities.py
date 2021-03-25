@@ -46,7 +46,7 @@ class EKF_OriginFusion(EKF_Origin):
             self.my_kf.R[1, 1] = 0.15 * 1  # ABS_Y
             self.my_kf.R[2, 2] = 1. * R_scalar  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
-                self.my_kf.R[rowcol, rowcol] = 0.25 * 4.887**2
+                self.my_kf.R[rowcol, rowcol] = 0.2 * 4.887**2
 
             # PREDICTION
             self.my_kf.predict()
@@ -65,10 +65,10 @@ class EKF_OriginFusion(EKF_Origin):
 
 def main():
     # Specify StaticIP of Anchors that participate in computation
-    RxIP_lst = ['94', '95', '97']
+    RxIP_lst = ['94', '96', '97']
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
-    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=False)
+    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=True)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
@@ -103,7 +103,7 @@ def main():
                 print("RMSE between traj1 & 2 = %.4f m" % ekf.rms_traj())
                 recv_idx += 1
 
-                if recv_idx > 120:
+                if recv_idx > 105:
                     break
 
 
