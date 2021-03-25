@@ -19,20 +19,21 @@ import matplotlib
 
 
 # LoRa RX Coordinates in order of Pi-IP: 93, 94, 95, 96, 97
-'''
+
 R1 = np.array([[-2., 10., 0.],
                [12., 10., 0.],
                [13., -1., 0.],
                [5., -1.5, 0.],
                [-5., 4., 0.]])
-'''
+
 # Rotated coordinates for RightHand search
+'''
 R1 = np.array([[10., 2., 0.],
                [10., -12., 0.],
                [-1., -13., 0.],
                [-1.5, -5, 0.],
                [4., 5., 0.]])
-
+'''
 '''
 R1 = np.array([[0., 0., 0.],
                [15., 5., 0.],
@@ -279,7 +280,7 @@ def hx_PosVel(x, anchor=1):
     return h
 
 
-def HJacobian_Origin(x, anchor=1):
+def HJacobian_Origin(x, anchorLst=[0]):
     """ compute Jacobian of H matrix for state x """
     dt = .1
     X = x[0, 0]
@@ -288,7 +289,7 @@ def HJacobian_Origin(x, anchor=1):
     a = ALPHA * math.log10(math.e)
     # HJabobian in (3, 3) if ZERO LoRa RX; (6, 3) if THREE LoRa RXs available
     Jacob = eye(3)
-    for row in range(0, anchor):
+    for row in anchorLst:
         denom = (X - R1[row, 0]) ** 2 + (Y - R1[row, 1]) ** 2
         if denom < 0.01:
             denom = 0.01
@@ -298,12 +299,12 @@ def HJacobian_Origin(x, anchor=1):
     return Jacob
 
 
-def hx_Origin(x, anchor=1):
+def hx_Origin(x, anchorLst=[0]):
     """ compute measurement of [X, Y, ROT_Z, RSSIs...]^T that would correspond to state x.
     """
     dt = .1
     h = array([x[0, 0], x[1, 0], x[2, 0]]).reshape((-1, 1))
-    for row in range(0, anchor):
+    for row in anchorLst:
         dis = np.linalg.norm(x[:2, 0] - R1[row, :2])
         thres_dis = 0.1
         if dis > thres_dis:
@@ -362,10 +363,11 @@ class Simu(object):
 
 
 class EKF_Fusion():
-    def __init__(self, dt=0.1, anchor=1, dim_x=4, dim_z=3, ismdn=False, blit=True, visual=False, dense=False):
+    def __init__(self, dt=0.1, anchor=1, anchorLst=[0], dim_x=4, dim_z=3, ismdn=False, blit=True, visual=False, dense=False):
         self.visual = visual
         self.dense = dense
         self.anchor = anchor
+        self.anchorLst = anchorLst
         self.ismdn = ismdn
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
@@ -465,7 +467,6 @@ class EKF_Fusion():
             rssis = msg_list[-self.anchor:]
             msg_list = msg_list[:-self.anchor]
 
-        # TODO Append rssis for anchors and smooth
         for anchor_idx in range(0, self.anchor):
             self.rssi_dict[anchor_idx].append(rssis[anchor_idx])
             self.rssi_dict_smth[anchor_idx].append(self.smoother(self.rssi_dict[anchor_idx]))
@@ -714,7 +715,7 @@ class EKF_Fusion():
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
         # Remove Range Circle
-        for anchor_idx in range(0, self.anchor):
+        for anchor_idx in self.anchorLst:
             self.cir_dict[anchor_idx].remove()
 
         self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
@@ -723,13 +724,13 @@ class EKF_Fusion():
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])
-        self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])
+        self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])
+        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])
         #self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])
 
         # Plot Range
-        for anchor_idx in range(0, self.anchor):
-            radius = 10 ** ((self.rssi_dict_smth[anchor_idx][-1] + BETA) / ALPHA)
+        for anchor_count, anchor_idx in enumerate(self.anchorLst):
+            radius = 10 ** ((self.rssi_dict_smth[anchor_count][-1] + BETA) / ALPHA)
             circle0 = plt.Circle((R1[anchor_idx, 0], R1[anchor_idx, 1]), radius, color='g', fill=False, alpha=.6, linewidth=0.5)
             cir0 = self.ax21.add_patch(circle0)
             self.cir_dict[anchor_idx] = cir0
@@ -742,8 +743,8 @@ class EKF_Fusion():
         self.ax22.set_ylabel("RSSI (dBm)", labelpad=-3)
         #self.ax22.set_ylim(-90, -10)
 
-        for anchor_idx in range(0, self.anchor):
-            self.ax22.plot(self.rssi_dict_smth[anchor_idx], color=self.clr_lst[anchor_idx], alpha=.7, label='RX{}'.format(anchor_idx))
+        for anchor_count, anchor_idx in enumerate(self.anchorLst):
+            self.ax22.plot(self.rssi_dict_smth[anchor_count], color=self.clr_lst[anchor_idx], alpha=.7, label='RX{}'.format(anchor_idx))
 
         '''
         if self.anchor:
@@ -805,11 +806,11 @@ class EKF_Fusion():
         self.ax21.legend(loc='upper left')
 
         # Show RXs
-        for anc in range(0, self.anchor):
-            self.ax21.scatter(R1[int(anc), 0], R1[int(anc), 1], R1[int(anc), 2], marker='1', s=100, color=self.clr_lst[anc])
+        for anchor_idx in self.anchorLst:
+            self.ax21.scatter(R1[int(anchor_idx), 0], R1[int(anchor_idx), 1], R1[int(anchor_idx), 2], marker='1', s=100, color=self.clr_lst[anchor_idx])
 
         # Init Range Display
-        for anchor_idx in range(0, self.anchor):
+        for anchor_count, anchor_idx in enumerate(self.anchorLst):
             if not self.rssi_dict[anchor_idx]:
                 radius = .5
             else:

@@ -102,12 +102,12 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
 
 
 class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
-    def __init__(self, anchor, dt=0.1, dim_x=5, ismdn=False, visual=True, dense=False):
+    def __init__(self, anchor, anchorLst=[0], dt=0.1, dim_x=5, ismdn=False, visual=True, dense=False):
         if type(anchor) != int or anchor < 0:
             print("Number of anchor should be integer no less than 0")
             raise TypeError
 
-        super().__init__(anchor=anchor, dim_x=dim_x, dim_z=3 + anchor, dt=dt, ismdn=ismdn, visual=visual, dense=dense)
+        super().__init__(anchor=anchor, anchorLst=anchorLst, dim_x=dim_x, dim_z=3 + anchor, dt=dt, ismdn=ismdn, visual=visual, dense=dense)
 
         # State Transition Martrix: F
         self.my_kf.F = eye(5)
@@ -402,9 +402,9 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
 
 
 class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
-    def __init__(self, anchor, dt=0.1, ismdn=False, visual=True, dense=False):
+    def __init__(self, anchor, anchorLst=[0], dt=0.1, ismdn=False, visual=True, dense=False):
         # Xk = [x, y, theta]
-        super().__init__(anchor=anchor, dt=dt, dim_x=3, ismdn=ismdn, visual=visual, dense=dense)
+        super().__init__(anchor=anchor, anchorLst=anchorLst, dt=dt, dim_x=3, ismdn=ismdn, visual=visual, dense=dense)
         # State Transition Martrix: F
         self.my_kf.F = eye(3)
 
@@ -459,7 +459,7 @@ class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
             #print("X-:\n", self.my_kf.x)
 
             # UPDATE
-            self.my_kf.update(z, HJacobian_Origin, hx_Origin, args=(self.anchor), hx_args=(self.anchor))
+            self.my_kf.update(z, HJacobian_Origin, hx_Origin, args=(self.anchorLst), hx_args=(self.anchorLst))
 
             # Log Posterior State x
             self.xs.append(self.my_kf.x)

@@ -9,9 +9,9 @@ from EKF import HJacobian_Origin, hx_Origin
 
 
 class EKF_OriginFusion(EKF_Origin):
-    def __init__(self, anchor, dt=0.1, ismdn=False, visual=True, dense=False):
+    def __init__(self, anchor, anchorLst, dt=0.1, ismdn=False, visual=True, dense=False):
         # Xk = [x, y, theta]
-        super().__init__(anchor=anchor, dt=dt, ismdn=ismdn, visual=visual, dense=dense)
+        super().__init__(anchor=anchor, anchorLst=anchorLst, dt=dt, ismdn=ismdn, visual=visual, dense=dense)
         # State Transition Martrix: F
         self.my_kf.F = np.eye(3)
 
@@ -46,14 +46,14 @@ class EKF_OriginFusion(EKF_Origin):
             self.my_kf.R[1, 1] = 0.15 * 1  # ABS_Y
             self.my_kf.R[2, 2] = 1. * R_scalar  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
-                self.my_kf.R[rowcol, rowcol] = 0.2 * 4.887**2
+                self.my_kf.R[rowcol, rowcol] = 0.25 * 4.887**2
 
             # PREDICTION
             self.my_kf.predict()
             #print("X-:\n", self.my_kf.x)
 
             # UPDATE
-            self.my_kf.update(z, HJacobian_Origin, hx_Origin, args=(self.anchor), hx_args=(self.anchor))
+            self.my_kf.update(z, HJacobian_Origin, hx_Origin, args=(self.anchorLst), hx_args=(self.anchorLst))
 
             # Log Posterior State x
             self.xs.append(self.my_kf.x)
@@ -64,11 +64,11 @@ class EKF_OriginFusion(EKF_Origin):
 
 
 def main():
+    # Specify StaticIP of Anchors that participate in computation
+    RxIP_lst = ['94', '95', '97']
+    RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
-    ekf = EKF_OriginFusion(anchor=5, ismdn=False, dense=False)
-
-    # Sync Multiple RX RSSIs and Replay
-    RxIP_lst = ['93', '94', '95', '96', '97']
+    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=False)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
@@ -88,8 +88,8 @@ def main():
                 msgs = parts[1]
                 vals = msgs.split(',')
 
-                for rssi_id in range(2, 2 + ekf.anchor):
-                    rssi0 = int(parts[rssi_id])
+                for rssi_id in ekf.anchorLst:
+                    rssi0 = int(parts[rssi_id + 2])
                     rssi_list.append(rssi0)
 
                 msg_list = [float(i) for i in vals]
@@ -103,7 +103,7 @@ def main():
                 print("RMSE between traj1 & 2 = %.4f m" % ekf.rms_traj())
                 recv_idx += 1
 
-                if recv_idx > 105:
+                if recv_idx > 120:
                     break
 
 
