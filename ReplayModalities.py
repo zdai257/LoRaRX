@@ -3,7 +3,7 @@ from os.path import join
 import numpy as np
 import math
 import time
-from replay import EKF_Origin
+from replay import EKF_Origin, EKF_Fusion_MultiRX_AngularV
 from EKF import HJacobian_Origin, hx_Origin
 
 
@@ -21,9 +21,10 @@ def compute_rmse(path_s, path_l, delay):
 
 
 class EKF_OriginFusion(EKF_Origin):
-    def __init__(self, anchor, anchorLst, dt=0.1, ismdn=False, visual=True, dense=False):
+    def __init__(self, anchorLst, dt=0.1, ismdn=False, visual=True, dense=False, GtDirDate=None):
         # Xk = [x, y, theta]
-        super().__init__(anchor=anchor, anchorLst=anchorLst, dt=dt, ismdn=ismdn, visual=visual, dense=dense)
+        super().__init__(anchor=len(anchorLst), anchorLst=anchorLst, dt=dt, ismdn=ismdn, visual=visual, dense=dense,
+                         GtDirDate=GtDirDate)
         # State Transition Martrix: F
         self.my_kf.F = np.eye(3)
 
@@ -76,11 +77,15 @@ class EKF_OriginFusion(EKF_Origin):
 
 
 def main():
-    # Specify StaticIP of Anchors that participate in computation
+    # Specify StaticIP of Anchors that participate in computation & GT file date
+    # LeftVicon2:  '2021-03-24-15-28-40'
+    # Left3:       '2021-03-24-15-45-47'
+    # RightVicon2: '2021-03-24-16-06-10'
+    GtDate = '2021-03-24-15-45-47'
     RxIP_lst = ['94', '95', '97']
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
-    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=True)
+    ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=False, GtDirDate=GtDate)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):

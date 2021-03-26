@@ -367,14 +367,17 @@ class Simu(object):
 
 
 class EKF_Fusion():
-    def __init__(self, dt=0.1, anchor=1, anchorLst=[0], dim_x=4, dim_z=3, ismdn=False, blit=True, visual=False, dense=False):
+    def __init__(self, dt=0.1, anchor=1, anchorLst=[0], dim_x=4, dim_z=3,
+                 ismdn=False, blit=True, visual=False, dense=False, GtDirDate=None):
         self.visual = visual
         self.dense = dense
         self.anchor = anchor
         self.anchorLst = anchorLst
         self.ismdn = ismdn
 
-        self.gt_path = self.get_gt_path()
+        self.gt_path = []
+        if GtDirDate is not None:
+            self.gt_path = self.get_gt_path(GtDirDate)
         self.gt_x = [item[0] for item in self.gt_path]
         self.gt_y = [item[1] for item in self.gt_path]
         # Current Pose handler
@@ -814,7 +817,7 @@ class EKF_Fusion():
         self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
 
         # Plot GT path
-        self.ax21.scatter(self.gt_x, self.gt_y, 0, s=4, alpha=.3, color='grey', label='LiDAR')
+        self.ax21.scatter(self.gt_x, self.gt_y, 0, s=4, alpha=.5, color='grey', label='LiDAR')
         self.ax21.legend(loc='upper left')
 
         # Show RXs
@@ -840,9 +843,9 @@ class EKF_Fusion():
         self.ax21.clear()
 
 
-    def get_gt_path(self, DirDate='2021-03-24-15-28-40'):
+    def get_gt_path(self, DirDate):
         #DirDate = '2021-03-24-15-28-40'
-        DirDate = '2021-03-24-15-45-47'
+        #DirDate = '2021-03-24-15-45-47'
         #DirDate = '2021-03-24-16-06-10'
         filename = '_slash_aft_mapped_to_init.csv'
         filePath = join('TEST', 'test0324', DirDate, filename)

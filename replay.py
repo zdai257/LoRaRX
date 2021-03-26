@@ -8,12 +8,12 @@ from EKF import *
 
 
 class EKF_Fusion_MultiRX(EKF_Fusion):
-    def __init__(self, anchor, dt=0.1, visual=True):
+    def __init__(self, anchor, dt=0.1, visual=True, GtDirDate=None):
         if type(anchor) != int or anchor < 1:
             print("Number of anchor should be integer greater than 0")
             raise TypeError
 
-        super().__init__(anchor=anchor, dim_z=2+anchor, dt=dt, visual=visual)
+        super().__init__(anchor=anchor, dim_z=2+anchor, dt=dt, visual=visual, GtDirDate=GtDirDate)
         # TWEEK PARAMS
         self.my_kf.x = np.array([0., 0., 0., 0.1]).reshape(-1, 1)
         self.my_kf.P = np.diag(np.array([1., 1., 10., 20.]))
@@ -102,12 +102,13 @@ class EKF_Fusion_MultiRX_ZYaw(EKF_Fusion):
 
 
 class EKF_Fusion_MultiRX_AngularV(EKF_Fusion):
-    def __init__(self, anchor, anchorLst=[0], dt=0.1, dim_x=5, ismdn=False, visual=True, dense=False):
+    def __init__(self, anchor, anchorLst=[0], dt=0.1, dim_x=5, ismdn=False, visual=True, dense=False, GtDirDate=None):
         if type(anchor) != int or anchor < 0:
             print("Number of anchor should be integer no less than 0")
             raise TypeError
 
-        super().__init__(anchor=anchor, anchorLst=anchorLst, dim_x=dim_x, dim_z=3 + anchor, dt=dt, ismdn=ismdn, visual=visual, dense=dense)
+        super().__init__(anchor=anchor, anchorLst=anchorLst, dim_x=dim_x, dim_z=3 + anchor, dt=dt,
+                         ismdn=ismdn, visual=visual, dense=dense, GtDirDate=GtDirDate)
 
         # State Transition Martrix: F
         self.my_kf.F = eye(5)
@@ -402,9 +403,10 @@ class EKF_Fusion_ConstantA(EKF_Fusion_MultiRX_AngularV):
 
 
 class EKF_Origin(EKF_Fusion_MultiRX_AngularV):
-    def __init__(self, anchor, anchorLst=[0], dt=0.1, ismdn=False, visual=True, dense=False):
+    def __init__(self, anchor, anchorLst=[0], dt=0.1, ismdn=False, visual=True, dense=False, GtDirDate=None):
         # Xk = [x, y, theta]
-        super().__init__(anchor=anchor, anchorLst=anchorLst, dt=dt, dim_x=3, ismdn=ismdn, visual=visual, dense=dense)
+        super().__init__(anchor=anchor, anchorLst=anchorLst, dt=dt, dim_x=3, ismdn=ismdn, visual=visual, dense=dense,
+                         GtDirDate=GtDirDate)
         # State Transition Martrix: F
         self.my_kf.F = eye(3)
 
