@@ -7,6 +7,18 @@ from replay import EKF_Origin
 from EKF import HJacobian_Origin, hx_Origin
 
 
+def compute_rmse(path_s, path_l, delay):
+
+    path_length = len(path_s)
+    path_lt = path_l[delay:delay + path_length]
+    sum_sqr = 0
+    for i in range(0, path_length):
+        sum_sqr += (path_lt[i][0] - path_s[i][0]) ** 2 + (path_lt[i][1] - path_s[i][1]) ** 2
+
+    RMSE = np.sqrt(sum_sqr / path_length)
+    #print("\nRMSE = %.5f m" % RMSE)
+    return RMSE
+
 
 class EKF_OriginFusion(EKF_Origin):
     def __init__(self, anchor, anchorLst, dt=0.1, ismdn=False, visual=True, dense=False):
@@ -41,7 +53,7 @@ class EKF_OriginFusion(EKF_Origin):
             rot_z = self.final_list[-g][-1]
             #print(-abs(rot_z))
             R_scalar = 10 * (-math.e ** (-0.2 * abs(rot_z)) + 1.)
-            print(R_scalar)
+            #print(R_scalar)
             self.my_kf.R[0, 0] = 0.15 * 1  # ABS_X
             self.my_kf.R[1, 1] = 0.15 * 1  # ABS_Y
             self.my_kf.R[2, 2] = 1. * R_scalar  # ABS_YAW
@@ -68,7 +80,7 @@ def main():
     RxIP_lst = ['94', '96', '97']
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
-    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=True)
+    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=False)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
@@ -77,7 +89,7 @@ def main():
 
             # Add synthetic RSSIs
             data_len = len(recv_list)
-            print(data_len)
+            print("Odometry Data Length = {}".format(data_len * 10))
             recv_idx = 0
 
             for item in recv_list:
@@ -102,17 +114,29 @@ def main():
                 time.sleep(.001)
                 print("RMSE between traj1 & 2 = %.4f m" % ekf.rms_traj())
                 recv_idx += 1
+                #print(ekf.xs)
 
-                if recv_idx > 105:
-                    break
+                #if recv_idx > 105:
+                #    break
 
 
             ekf.fig2.savefig("replay_ekf.png")
 
-    '''
-            ekf.reset_view()
-            ekf.set_view()
-    '''
+            max_delay = abs(len(ekf.path_dense) - len(ekf.gt_path))
+
+            path_lora = [[item[0, 0], item[1, 0]] for item in ekf.xs]
+            RMSE_odom, RMSE_lora = [], []
+
+            for delay in range(0, max_delay):
+                rmse0 = compute_rmse(path_s=ekf.gt_path, path_l=ekf.path_dense, delay=delay)
+                rmse1 = compute_rmse(path_s=ekf.gt_path, path_l=path_lora, delay=delay)
+                RMSE_odom.append(rmse0)
+                RMSE_lora.append(rmse1)
+
+            best_RMSE_lora, best_delay = min((val, idx) for (idx, val) in enumerate(RMSE_lora))
+            corr_RMSE_odom = RMSE_odom[best_delay]
+            print("\nBest RMSE = %.5f with delay = %d\nCorresponding Odometry RMSE = %.5f" %
+                  (best_RMSE_lora, best_delay, corr_RMSE_odom))
 
 
 if __name__=="__main__":

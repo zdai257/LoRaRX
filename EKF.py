@@ -1,12 +1,16 @@
+import os
+from os.path import join
 import sys
 import math
 import numpy as np
 import time
+from datetime import datetime
 from math import sqrt
 from numpy.random import randn
 from filterpy.kalman import ExtendedKalmanFilter
 from numpy import eye, array, asarray
 from scipy.signal import savgol_filter
+import pandas
 from eulerangles import *
 from utility import *
 from plot_util import *
@@ -369,6 +373,8 @@ class EKF_Fusion():
         self.anchor = anchor
         self.anchorLst = anchorLst
         self.ismdn = ismdn
+
+        self.gt_path = self.get_gt_path()
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
         [[1., 0, 0, 0],
@@ -407,6 +413,7 @@ class EKF_Fusion():
         self.ax22 = self.fig2.add_subplot(gs[1])
         #self.ax21 = self.fig2.add_subplot(2, 1, 1, projection='3d') #fig1.gca(projection='3d') #Axes3D(fig1)
         #self.ax22 = self.fig2.add_subplot(2, 1, 2)
+
         plt.ion()
         plt.tight_layout()
         self.set_view()
@@ -774,7 +781,7 @@ class EKF_Fusion():
             
         else:
             self.fig2.canvas.draw()
-        
+
         self.fig2.canvas.flush_events()
 
         stop_t = time.time() - start_t
@@ -805,6 +812,11 @@ class EKF_Fusion():
         self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
         self.ax21.legend(loc='upper left')
 
+        # Plot GT path
+        gt_x = [item[0] for item in self.gt_path]
+        gt_y = [item[1] for item in self.gt_path]
+        self.ax21.scatter(gt_x, gt_y, 0, s=3, alpha=.4, color='grey')
+
         # Show RXs
         for anchor_idx in self.anchorLst:
             self.ax21.scatter(R1[int(anchor_idx), 0], R1[int(anchor_idx), 1], R1[int(anchor_idx), 2], marker='1', s=100, color=self.clr_lst[anchor_idx])
@@ -826,6 +838,36 @@ class EKF_Fusion():
             self.rssi_dict[anchor_idx] = []
             self.rssi_dict_smth[anchor_idx] = []
         self.ax21.clear()
+
+
+    def get_gt_path(self, DirDate='2021-03-24-15-28-40'):
+        # DirDate = '2021-03-24-15-28-40'
+        # DirDate = '2021-03-24-15-45-47'
+        DirDate = '2021-03-24-16-06-10'
+        filename = '_slash_aft_mapped_to_init.csv'
+        filePath = join('TEST', 'test0324', DirDate, filename)
+
+        df_gt = pandas.read_csv(filePath, sep=',', header=0)
+        Times = df_gt.values[:, 4:6]
+        Trans = df_gt.values[:, 11:14]
+        Quat = df_gt.values[:, 15:19]
+        gt_length = np.size(Trans, 0)
+        print("GroundTruth Data Length = {}".format(gt_length))
+        GTpath = []
+
+        for i in range(0, gt_length):
+            q = [Quat[i, 3], Quat[i, 0], Quat[i, 1], Quat[i, 2]]
+            RotEular = quat2euler(q)
+
+            t0 = datetime.utcfromtimestamp(Times[i, 0] + Times[i, 1] / (10 ** 9))
+            abs_x = Trans[i, 0]
+            abs_y = Trans[i, 1]
+            abs_yaw = RotEular[2]
+
+            GTpath.append([abs_x, abs_y, abs_yaw, t0])
+
+        return GTpath
+
 
 
 if __name__=="__main__":
