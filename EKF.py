@@ -23,7 +23,7 @@ import matplotlib
 
 
 # LoRa RX Coordinates in order of Pi-IP: 93, 94, 95, 96, 97
-'''
+
 R1 = np.array([[-2., 10., 0.],
                [12., 10., 0.],
                [13., -1., 0.],
@@ -37,7 +37,7 @@ R1 = np.array([[10., 2., 0.],
                [-1., -13., 0.],
                [-1.5, -5, 0.],
                [4., 5., 0.]])
-
+'''
 '''
 R1 = np.array([[0., 0., 0.],
                [15., 5., 0.],
@@ -375,6 +375,8 @@ class EKF_Fusion():
         self.ismdn = ismdn
 
         self.gt_path = self.get_gt_path()
+        self.gt_x = [item[0] for item in self.gt_path]
+        self.gt_y = [item[1] for item in self.gt_path]
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
         [[1., 0, 0, 0],
@@ -731,8 +733,8 @@ class EKF_Fusion():
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])
-        self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])
+        self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])
+        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])
         #self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])
 
         # Plot Range
@@ -810,12 +812,10 @@ class EKF_Fusion():
         self.handle_scat = self.ax21.scatter(x, y, z, s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
         self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
         self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
-        self.ax21.legend(loc='upper left')
 
         # Plot GT path
-        gt_x = [item[0] for item in self.gt_path]
-        gt_y = [item[1] for item in self.gt_path]
-        self.ax21.scatter(gt_x, gt_y, 0, s=3, alpha=.4, color='grey')
+        self.ax21.scatter(self.gt_x, self.gt_y, 0, s=4, alpha=.3, color='grey', label='LiDAR')
+        self.ax21.legend(loc='upper left')
 
         # Show RXs
         for anchor_idx in self.anchorLst:
@@ -841,9 +841,9 @@ class EKF_Fusion():
 
 
     def get_gt_path(self, DirDate='2021-03-24-15-28-40'):
-        # DirDate = '2021-03-24-15-28-40'
-        # DirDate = '2021-03-24-15-45-47'
-        DirDate = '2021-03-24-16-06-10'
+        #DirDate = '2021-03-24-15-28-40'
+        DirDate = '2021-03-24-15-45-47'
+        #DirDate = '2021-03-24-16-06-10'
         filename = '_slash_aft_mapped_to_init.csv'
         filePath = join('TEST', 'test0324', DirDate, filename)
 

@@ -77,10 +77,10 @@ class EKF_OriginFusion(EKF_Origin):
 
 def main():
     # Specify StaticIP of Anchors that participate in computation
-    RxIP_lst = ['94', '96', '97']
+    RxIP_lst = ['94', '95', '97']
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
-    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=False)
+    ekf = EKF_OriginFusion(anchor=len(RxIP_lst), anchorLst=RxLst, ismdn=False, dense=True)
 
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
@@ -116,12 +116,13 @@ def main():
                 recv_idx += 1
                 #print(ekf.xs)
 
-                #if recv_idx > 105:
-                #    break
+                if recv_idx > 120:
+                    break
 
 
             ekf.fig2.savefig("replay_ekf.png")
 
+            print("Path Length = %d; GT Length = %d" % (len(ekf.path_dense), len(ekf.gt_path)))
             max_delay = abs(len(ekf.path_dense) - len(ekf.gt_path))
 
             path_lora = [[item[0, 0], item[1, 0]] for item in ekf.xs]
