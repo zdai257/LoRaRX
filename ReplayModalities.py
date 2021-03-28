@@ -57,7 +57,7 @@ class EKF_OriginFusion(EKF_Origin):
             #print(R_scalar)
             self.my_kf.R[0, 0] = 0.15 * 1  # ABS_X
             self.my_kf.R[1, 1] = 0.15 * 1  # ABS_Y
-            self.my_kf.R[2, 2] = 1. * R_scalar  # ABS_YAW
+            self.my_kf.R[2, 2] = 1 * R_scalar  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 0.2 * 4.887**2
 
@@ -81,12 +81,12 @@ def main():
     # LeftVicon2:  '2021-03-24-15-28-40'
     # Left3:       '2021-03-24-15-45-47'
     # RightVicon2: '2021-03-24-16-06-10'
-    GtDate = '2021-03-24-15-45-47'
-    RxIP_lst = ['94', '95', '97']
+    GtDate = '2021-03-24-16-06-10'
+    RxIP_lst = ['94', '96', '97']
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
-    ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=False, GtDirDate=GtDate)
-
+    ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=True, GtDirDate=GtDate)
+    #time.sleep(5)
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
             with open(join('TEST', filename), "r") as f:

@@ -23,7 +23,7 @@ import matplotlib
 
 
 # LoRa RX Coordinates in order of Pi-IP: 93, 94, 95, 96, 97
-
+'''
 R1 = np.array([[-2., 10., 0.],
                [12., 10., 0.],
                [13., -1., 0.],
@@ -37,7 +37,7 @@ R1 = np.array([[10., 2., 0.],
                [-1., -13., 0.],
                [-1.5, -5, 0.],
                [4., 5., 0.]])
-'''
+
 '''
 R1 = np.array([[0., 0., 0.],
                [15., 5., 0.],
@@ -736,8 +736,8 @@ class EKF_Fusion():
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
         # Manually Equal Axis and Limit
-        self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])
-        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])
+        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])
+        self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])
         #self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])
 
         # Plot Range
