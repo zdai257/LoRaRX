@@ -7,6 +7,9 @@ from replay import EKF_Origin, EKF_Fusion_MultiRX_AngularV
 from EKF import HJacobian_Origin, hx_Origin
 
 
+XYvar = 1.  # 0.2
+
+
 def compute_rmse(path_s, path_l, delay):
 
     path_length = len(path_s)
@@ -55,9 +58,9 @@ class EKF_OriginFusion(EKF_Origin):
             #print(-abs(rot_z))
             R_scalar = 10 * (-math.e ** (-0.2 * abs(rot_z)) + 1.)
             #print(R_scalar)
-            self.my_kf.R[0, 0] = 0.15 * 1  # ABS_X
-            self.my_kf.R[1, 1] = 0.15 * 1  # ABS_Y
-            self.my_kf.R[2, 2] = 1 * R_scalar  # ABS_YAW
+            self.my_kf.R[0, 0] = XYvar * 1  # ABS_X
+            self.my_kf.R[1, 1] = XYvar * 1  # ABS_Y
+            self.my_kf.R[2, 2] = 1. * R_scalar  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
                 self.my_kf.R[rowcol, rowcol] = 0.2 * 4.887**2
 
