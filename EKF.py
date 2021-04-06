@@ -19,17 +19,17 @@ import mpl_toolkits.mplot3d.art3d as art3d
 import matplotlib.pyplot as plt
 from matplotlib import gridspec
 import matplotlib
-matplotlib.use('agg')
+#matplotlib.use('agg')
 
 
 # LoRa RX Coordinates in order of Pi-IP: 93, 94, 95, 96, 97
-
+'''
 R1 = np.array([[-2., 10., 0.],
                [12., 10., 0.],
                [13., -1., 0.],
                [5., -1.5, 0.],
                [-5., 4., 0.]])
-
+'''
 # Rotated coordinates for RightHand search
 '''
 R1 = np.array([[10., 2., 0.],
@@ -45,6 +45,12 @@ R1 = np.array([[0., 0., 0.],
                [5., 4., 0.],
                [2., -2.5, 0.]])
 '''
+
+# 61 Apartment
+R1 = np.array([[9., -1., 0.],
+               [1., -1.5, 0.],
+               [5., 17., 0.],
+               [8., 17, 0.]])
 
 # Path Loss Model params
 ALPHA = -55#-45.712  # -28.57 * 1.6
@@ -848,7 +854,8 @@ class EKF_Fusion():
         #DirDate = '2021-03-24-15-45-47'
         #DirDate = '2021-03-24-16-06-10'
         filename = '_slash_aft_mapped_to_init.csv'
-        filePath = join('TEST', 'test0324', DirDate, filename)
+        test_date = DirDate[5:7] + DirDate[8:10]
+        filePath = join('TEST', 'test' + test_date, DirDate, filename)
 
         df_gt = pandas.read_csv(filePath, sep=',', header=0)
         Times = df_gt.values[:, 4:6]

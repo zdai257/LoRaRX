@@ -10,15 +10,17 @@ import shutil
 
 #DestFile = '2021-03-24_15_22_25_362772'
 #DestFile = '2021-03-24_15_32_54_355550'
-DestFile = '2021-03-24_15_43_37_188576'
+#DestFile = '2021-03-24_15_43_37_188576'
 #DestFile = '2021-03-24_15_58_21_728599'
 #DestFile = '2021-03-24_16_04_17_589116'
 
-DirDate = 'test0324'
-PathName = 'Left3'
+DestFile = '2021-04-05_22_43_32_049466'
 
-RxIP_lst = ['93', '94', '95', '96', '97']
-MasterIP = 4
+DirDate = 'test0405'
+PathName = 'ApartmentIn'
+
+RxIP_lst = ['93', '94', '96', '97']
+MasterIP = 0
 #shutil.copyfile(join('TEST', 'test0323', RxIP_lst[MasterIP], DestFile+'.txt'), join('TEST', DestFile + '_left2.txt'))
 
 
@@ -35,7 +37,7 @@ for mline in master_list:
     master_rssi = int(mparts[2])
 
     default_dbm = -65
-    line_append = default_dbm * np.ones(5, dtype=int)
+    line_append = default_dbm * np.ones(len(RxIP_lst), dtype=int)
     line_append[MasterIP] = master_rssi
 
     str_rssis = ''
