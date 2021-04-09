@@ -14,12 +14,12 @@ import shutil
 #DestFile = '2021-03-24_15_58_21_728599'
 #DestFile = '2021-03-24_16_04_17_589116'
 
-DestFile = '2021-04-05_22_43_32_049466'
+DestFile = '2021-04-09_03_08_00_509688'
 
-DirDate = 'test0405'
-PathName = 'ApartmentIn'
+DirDate = 'test0409'
+PathName = 'ApartmentInOut2'
 
-RxIP_lst = ['93', '94', '96', '97']
+RxIP_lst = ['93', '94', '95', '96', '97']
 MasterIP = 0
 #shutil.copyfile(join('TEST', 'test0323', RxIP_lst[MasterIP], DestFile+'.txt'), join('TEST', DestFile + '_left2.txt'))
 
@@ -43,6 +43,7 @@ for mline in master_list:
     str_rssis = ''
     for ip in RxIP_lst:
         for filename in os.listdir(join('TEST', DirDate, ip)):
+            # Filter Correct timestamp of LoRa log down to Tens of Minutes
             if filename.startswith(DestFile[:15]) and ip != RxIP_lst[MasterIP]:
                 with open(join('TEST', DirDate, ip, filename), "r") as f:
                     recv_list = f.readlines()
