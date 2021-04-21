@@ -14,10 +14,10 @@ import shutil
 #DestFile = '2021-03-24_15_58_21_728599'
 #DestFile = '2021-03-24_16_04_17_589116'
 
-DestFile = '2021-04-09_03_08_00_509688'
+DestFile = '2021-04-20_14_07_26_942608'
 
-DirDate = 'test0409'
-PathName = 'ApartmentInOut2'
+DirDate = 'test0420'
+PathName = 'RightViconLast_crossmio'
 
 RxIP_lst = ['93', '94', '95', '96', '97']
 MasterIP = 0
@@ -60,7 +60,7 @@ for mline in master_list:
                     # Threshold for timestamp matching (s)
                     if abs(t_stp - master_t_stp) < 0.8:
                         rssi0 = int(parts[2])
-                        if rssi0 < -90 or rssi0 > 0:
+                        if rssi0 < -100 or rssi0 > 0:
                             print("Corrupted RSSI val")
                             if len(rssi_pre) > 3:
                                 rssi0 = sum(rssi_pre) / len(rssi_pre)

@@ -23,13 +23,13 @@ import matplotlib
 
 
 # LoRa RX Coordinates in order of Pi-IP: 93, 94, 95, 96, 97
-'''
+
 R1 = np.array([[-2., 10., 0.],
                [12., 10., 0.],
                [13., -1., 0.],
                [5., -1.5, 0.],
                [-5., 4., 0.]])
-'''
+
 # Rotated coordinates for RightHand search
 '''
 R1 = np.array([[10., 2., 0.],
@@ -52,14 +52,14 @@ R1 = np.array([[9., -1., 0.],
                [5., 17., 0.],
                [8., 17, 0.]])
 '''
-
+'''
 # 61 ApartmentInOut
 R1 = np.array([[-2., -3., 0.],
                [3., -3, 0.],
                [8., -3., 0.],
-               [8., 18., 0.],
-               [2.5, 18, 0.]])
-
+               [8., 22., 0.],
+               [2.5, 22, 0.]])
+'''
 # Path Loss Model params
 ALPHA = -55#-45.712  # -28.57 * 1.6
 BETA = -5.06
@@ -752,8 +752,8 @@ class EKF_Fusion():
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
 
         # Manually Equal Axis and Limit
-        self.ax21.auto_scale_xyz([0.5, 20.5], [-2, 18], [-1, 3])  # 61Apartment view
-        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])  # Left* search view
+        #self.ax21.auto_scale_xyz([0.5, 20.5], [-2, 18], [-1, 3])  # 61Apartment view
+        self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])  # Left* search view
         #self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])  # RightVicon2 view
         #self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])  # OneAnchorTest view
 
