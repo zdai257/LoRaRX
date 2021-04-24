@@ -14,10 +14,12 @@ import shutil
 #DestFile = '2021-03-24_15_58_21_728599'
 #DestFile = '2021-03-24_16_04_17_589116'
 
-DestFile = '2021-04-20_14_07_26_942608'
+#DestFile = '2021-04-21_13_41_34_516553'
 
-DirDate = 'test0420'
-PathName = 'RightViconLast_crossmio'
+DestFile = '2021-04-21_14_14_47_581486'
+
+DirDate = 'test0421'
+PathName = 'RightViconTwice_crossmio'
 
 RxIP_lst = ['93', '94', '95', '96', '97']
 MasterIP = 0

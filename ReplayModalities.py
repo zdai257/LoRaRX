@@ -5,6 +5,7 @@ import math
 import time
 from replay import EKF_Origin, EKF_Fusion_MultiRX_AngularV
 from EKF import HJacobian_Origin, hx_Origin
+import threading
 
 
 XYvar = .15  # 0.15 / 1 / 0.3
@@ -53,11 +54,13 @@ class EKF_OriginFusion(EKF_Origin):
             z = np.asarray(final_xyZ, dtype=float).reshape(-1, 1)
             #print("Measurement z: ", z)
 
-            # Refresh Measurement noise R
+            # Refresh Measurement noise R: attempt to use Adaptive (X,Y,Yaw) Noice Var.
             rot_z = self.final_list[-g][-1]
-            #print(-abs(rot_z))
+            #print(abs(rot_z))
             R_scalar = 10 * (-math.e ** (-0.2 * abs(rot_z)) + 1.)
             #print(R_scalar)
+            #XYvar = 0.014 * abs(rot_z)**2 + 0.104
+            #print(XYvar)
             self.my_kf.R[0, 0] = XYvar * 1  # ABS_X
             self.my_kf.R[1, 1] = XYvar * 1  # ABS_Y
             self.my_kf.R[2, 2] = 1. * R_scalar  # ABS_YAW
@@ -88,12 +91,15 @@ def main():
     # ApartmentInOut1: '2021-04-09-04-00-25'
     # ApartmentInOut2: '2021-04-09-04-10-02'
     # RightViconLast_crossmio: '2021-04-20-14-42-41'
-    GtDate = '2021-04-20-14-42-41'
-    RxIP_lst = [ '93', '94', '95', '97']
+    GtDate = '2021-03-24-15-28-40'
+    RxIP_lst = ['94', '96', '97']
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
     ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=False, GtDirDate=GtDate)
+
+    ticker = threading.Event()
     #time.sleep(5)
+
     for filename in os.listdir('TEST'):
         if filename.endswith('.txt'):
             with open(join('TEST', filename), "r") as f:
@@ -104,7 +110,11 @@ def main():
             print("Odometry Data Length = {}".format(data_len * 10))
             recv_idx = 0
 
-            for item in recv_list:
+
+            #for item in recv_list:
+            while not ticker.wait(.5):
+                item = recv_list[recv_idx]
+
                 rssi_list = []
                 parts = item.split(';')
                 t = parts[0]
@@ -128,7 +138,7 @@ def main():
                 recv_idx += 1
                 #print(ekf.xs)
 
-                if recv_idx > 110:
+                if recv_idx > 120:
                     break
 
 
