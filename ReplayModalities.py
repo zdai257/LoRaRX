@@ -6,6 +6,8 @@ import time
 from replay import EKF_Origin, EKF_Fusion_MultiRX_AngularV
 from EKF import HJacobian_Origin, hx_Origin
 import threading
+import matplotlib
+matplotlib.use('agg')
 
 
 XYvar = .15  # 0.15 / 1 / 0.3
@@ -33,7 +35,7 @@ class EKF_OriginFusion(EKF_Origin):
         self.my_kf.F = np.eye(3)
 
         # TWEEK PARAMS
-        self.my_kf.x = np.array([-0.1, -0.1, 0.]).reshape(-1, 1)
+        self.my_kf.x = np.array([-0.0, -0.0, 0.]).reshape(-1, 1)
         # Error Cov of Initial State
         self.my_kf.P = np.diag(np.array([10.0, 10.0, 1.0]))
         # Process Noise Cov
@@ -90,12 +92,13 @@ def main():
     # ApartmentIn: '2021-04-05-00-00-00'
     # ApartmentInOut1: '2021-04-09-04-00-25'
     # ApartmentInOut2: '2021-04-09-04-10-02'
-    # RightViconLast_crossmio: '2021-04-20-14-42-41'
-    GtDate = '2021-03-24-15-28-40'
-    RxIP_lst = ['94', '96', '97']
+    # 0420RightViconLast_crossmio: '2021-04-20-14-42-41'
+    # 0421RightViconLast_crossmio: '2021-04-21-14-43-47'
+    GtDate = '2021-04-21-14-43-47'
+    RxIP_lst = ['93', '94', '96', ]
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
-    ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=False, GtDirDate=GtDate)
+    ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=True, GtDirDate=GtDate)
 
     ticker = threading.Event()
     #time.sleep(5)
@@ -111,9 +114,9 @@ def main():
             recv_idx = 0
 
 
-            #for item in recv_list:
-            while not ticker.wait(.5):
-                item = recv_list[recv_idx]
+            for item in recv_list:
+            #while not ticker.wait(.5):
+                #item = recv_list[recv_idx]
 
                 rssi_list = []
                 parts = item.split(';')
@@ -138,7 +141,7 @@ def main():
                 recv_idx += 1
                 #print(ekf.xs)
 
-                if recv_idx > 120:
+                if recv_idx > 115:
                     break
 
 

@@ -24,6 +24,10 @@ Two-round left-hand search entering Vicon room:
 
 ![rightvicon2](https://github.com/zdai257/LoRaRX/blob/main/Trajectory/demo0324RightVicon2.png)
 
+Two-round right-hand search entering Vicon room in the 2nd lap:
+
+![rightviconlast](https://github.com/zdai257/LoRaRX/blob/main/Trajectory/demo0421RightViconLast.png)
+
 ### SIR Particle Filter
 
 Two-round right-hand search using Particle Filter at 1Hz real-time refresh rate:
