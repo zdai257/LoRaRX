@@ -16,10 +16,10 @@ import shutil
 
 #DestFile = '2021-04-21_13_41_34_516553'
 
-DestFile = '2021-04-21_14_14_47_581486'
+DestFile = '2021-04-28_22_35_39_418735'
 
-DirDate = 'test0421'
-PathName = 'RightViconTwice_crossmio'
+DirDate = 'test0428'
+PathName = 'ApartmentInOut3'
 
 RxIP_lst = ['93', '94', '95', '96', '97']
 MasterIP = 0

@@ -11,6 +11,7 @@ matplotlib.use('agg')
 
 
 XYvar = .15  # 0.15 / 1 / 0.3
+RssiVar = 0.2  # 0.2
 
 
 def compute_rmse(path_s, path_l, delay):
@@ -59,15 +60,18 @@ class EKF_OriginFusion(EKF_Origin):
             # Refresh Measurement noise R: attempt to use Adaptive (X,Y,Yaw) Noice Var.
             rot_z = self.final_list[-g][-1]
             #print(abs(rot_z))
-            R_scalar = 10 * (-math.e ** (-0.2 * abs(rot_z)) + 1.)
-            #print(R_scalar)
+            YawVar = 10 * (-math.e ** (-0.2 * abs(rot_z)) + 1.)
+            #print(YawVar)
             #XYvar = 0.014 * abs(rot_z)**2 + 0.104
+            #XYvar = -0.014 * abs(rot_z) ** 2 + 1.104
             #print(XYvar)
+            #RssiVar = 0.1125*abs(rot_z) + 0.1
+
             self.my_kf.R[0, 0] = XYvar * 1  # ABS_X
             self.my_kf.R[1, 1] = XYvar * 1  # ABS_Y
-            self.my_kf.R[2, 2] = 1. * R_scalar  # ABS_YAW
+            self.my_kf.R[2, 2] = YawVar * 1  # ABS_YAW
             for rowcol in range(3, 3+self.anchor):
-                self.my_kf.R[rowcol, rowcol] = 0.2 * 4.887**2
+                self.my_kf.R[rowcol, rowcol] = RssiVar * 4.887**2
 
             # PREDICTION
             self.my_kf.predict()
@@ -94,8 +98,9 @@ def main():
     # ApartmentInOut2: '2021-04-09-04-10-02'
     # 0420RightViconLast_crossmio: '2021-04-20-14-42-41'
     # 0421RightViconLast_crossmio: '2021-04-21-14-43-47'
-    GtDate = '2021-04-21-14-43-47'
-    RxIP_lst = ['93', '94', '96', ]
+    # ApartmentInOut3: '2021-04-28-23-39-11'
+    GtDate = '2021-04-28-23-39-11'
+    RxIP_lst = ['93', '94', '95', '97']
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
     ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=True, GtDirDate=GtDate)
@@ -141,7 +146,7 @@ def main():
                 recv_idx += 1
                 #print(ekf.xs)
 
-                if recv_idx > 115:
+                if recv_idx > 110:
                     break
 
 
