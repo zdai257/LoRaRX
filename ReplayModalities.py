@@ -99,7 +99,7 @@ def main():
     # 0420RightViconLast_crossmio: '2021-04-20-14-42-41'
     # 0421RightViconLast_crossmio: '2021-04-21-14-43-47'
     # ApartmentInOut3: '2021-04-28-23-39-11'
-    GtDate = '2021-03-24-15-28-40'
+    GtDate = '2021-04-28-23-39-11'
     RxIP_lst = [ ]
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 

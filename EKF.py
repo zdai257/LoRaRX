@@ -396,6 +396,8 @@ class EKF_Fusion():
         self.anchor = anchor
         self.anchorLst = anchorLst
         self.ismdn = ismdn
+        self.isOdomShow = False
+        self.isLoRaOdomShow = False
         self.iscustom = True
 
         self.gt_path = []
@@ -752,24 +754,28 @@ class EKF_Fusion():
             traj = self.path
         traj_fuse = np.asarray(self.xs)
         u, v, w = self.U[-1], self.V[-1], self.W[-1]
-        '''
-        self.handle_scat.set_alpha(.2)
-        self.handle_scat_ekf.set_alpha(.2)
-        self.handle_arrw.remove()
-        '''
+
+        if self.isOdomShow:
+            self.handle_scat.set_alpha(.2)
+        if self.isLoRaOdomShow:
+            self.handle_scat_ekf.set_alpha(.2)
+            self.handle_arrw.remove()
+
         # Remove Range Circle
         for anchor_idx in self.anchorLst:
             self.cir_dict[anchor_idx].remove()
-        '''
-        self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MilliEgo')
-        self.handle_arrw = self.ax21.quiver([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], u, v, w, color='cyan', length=2., arrow_length_ratio=0.4, linewidths=3., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter([traj_fuse[-1][0, 0]], [traj_fuse[-1][1, 0]], [0.], s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MilliEgo')
-        # Not Attempting to Visual EKF Updated Orientation
-        #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
-        '''
+
+        if self.isOdomShow:
+            self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MilliEgo')
+        if self.isLoRaOdomShow:
+            self.handle_arrw = self.ax21.quiver([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], u, v, w, color='cyan', length=2., arrow_length_ratio=0.4, linewidths=3., alpha=.7)
+            self.handle_scat_ekf = self.ax21.scatter([traj_fuse[-1][0, 0]], [traj_fuse[-1][1, 0]], [0.], s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MilliEgo')
+            # Not Attempting to Visual EKF Updated Orientation
+            #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
+
         # Manually Equal Axis and Limit
-        #self.ax21.auto_scale_xyz([-5, 15], [-2, 18], [-1, 3])  # 61Apartment view
-        self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])  # Left* search view
+        self.ax21.auto_scale_xyz([-5, 15], [-2, 18], [-1, 3])  # 61Apartment view
+        #self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])  # Left* search view
         #self.ax21.auto_scale_xyz([-2.5, 12.5], [-12.5, 2.5], [-1, 3])  # RightVicon2 view
         #self.ax21.auto_scale_xyz([-5, 15], [-15, 5], [-1, 3])  # OneAnchorTest view
 
@@ -807,12 +813,14 @@ class EKF_Fusion():
             # restore background
             self.fig2.canvas.restore_region(self.ax1background)
             self.fig2.canvas.restore_region(self.ax2background)
-            '''
+
             # redraw just the points
-            self.ax21.draw_artist(self.handle_scat)
-            self.ax21.draw_artist(self.handle_arrw)
-            self.ax21.draw_artist(self.handle_scat_ekf)
-            '''
+            if self.isOdomShow:
+                self.ax21.draw_artist(self.handle_scat)
+            if self.isLoRaOdomShow:
+                self.ax21.draw_artist(self.handle_arrw)
+                self.ax21.draw_artist(self.handle_scat_ekf)
+
             # fill in the axes rectangle
             self.fig2.canvas.blit(self.ax21.bbox)
             self.fig2.canvas.blit(self.ax22.bbox)
@@ -844,12 +852,13 @@ class EKF_Fusion():
         self.ax21.set_ylim(-2, 2)
         self.ax21.set_zlim(-2, 2)
         '''
-        quiv_len = np.sqrt(u**2 + v**2 + w**2)
-        '''
-        self.handle_scat = self.ax21.scatter(x, y, z, s=mark_size, color='b', marker='o', alpha=.9, label='MilliEgo')
-        self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MilliEgo')
-        '''
+
+        if self.isOdomShow:
+            self.handle_scat = self.ax21.scatter(x, y, z, s=mark_size, color='b', marker='o', alpha=.9, label='MilliEgo')
+        if self.isLoRaOdomShow:
+            self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
+            self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MilliEgo')
+
         # Plot CUSTOM path
         if self.iscustom:
             self.ax21.scatter(self.custom_x, self.custom_y, 0, s=6, alpha=1, color='g', label='IONet')
@@ -912,7 +921,7 @@ class EKF_Fusion():
 
 
     def get_custom_path(self):
-        filePath = join('replayed_results', 'leftvicon_ionet10.csv')
+        filePath = join('replayed_results', 'apartment_ionet10.csv')
 
         df_gt = pandas.read_csv(filePath, sep=',', header=0)
         position = df_gt.values[:, 5:7]
@@ -922,12 +931,18 @@ class EKF_Fusion():
         print("Path Data Length = {}".format(path_length))
         path = []
 
-        for i in range(100, path_length-210):
-            abs_x = position[i, 0] - position[100, 0] - 0
-            abs_y = position[i, 1] - position[100, 1] + 2
+        for i in range(300, path_length - 100):
+            abs_x = position[i, 0] - position[300, 0] + 2
+            abs_y = position[i, 1] - position[300, 1] - 6
             abs_yaw = yaw[i]
 
             path.append([abs_x, abs_y, abs_yaw])
+            # Interpolation for half FPS
+            '''
+            if len(path) > 1:
+                path.append([path[-1][0]/2 + path[-2][0]/2, path[-1][1]/2 + path[-2][1]/2,
+                             path[-1][2]/2 + path[-2][2]/2])
+            '''
 
         return path
 
