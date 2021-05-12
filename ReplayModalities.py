@@ -100,7 +100,7 @@ def main():
     # 0421RightViconLast_crossmio: '2021-04-21-14-43-47'
     # ApartmentInOut3: '2021-04-28-23-39-11'
     GtDate = '2021-03-24-15-28-40'
-    RxIP_lst = ['94', '96', '97', ]
+    RxIP_lst = [ ]
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
     ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=True, GtDirDate=GtDate)
@@ -146,7 +146,7 @@ def main():
                 recv_idx += 1
                 #print(ekf.xs)
 
-                if recv_idx > 115:
+                if recv_idx > 120:
                     break
 
 
@@ -166,8 +166,24 @@ def main():
 
             best_RMSE_lora, best_delay = min((val, idx) for (idx, val) in enumerate(RMSE_lora))
             corr_RMSE_odom = RMSE_odom[best_delay]
-            print("\nBest RMSE = %.5f with delay = %d\nCorresponding Odometry RMSE = %.5f" %
+            print("Best RMSE = %.5f with delay = %d\nCorresponding Odometry RMSE = %.5f" %
                   (best_RMSE_lora, best_delay, corr_RMSE_odom))
+
+            if ekf.iscustom:
+                print("\nCustom Path Length = %d; GT Length = %d" % (len(ekf.custom_path), len(ekf.gt_path)))
+                max_delay = abs(len(ekf.custom_path) - len(ekf.gt_path))
+
+                c_path = [[item[0], item[1]] for item in ekf.custom_path]
+                RMSE_c = []
+
+                for delay in range(0, max_delay):
+                    rmse0 = compute_rmse(path_s=c_path, path_l=ekf.gt_path, delay=delay)
+                    RMSE_c.append(rmse0)
+
+                best_RMSE_c, best_delay = min((val, idx) for (idx, val) in enumerate(RMSE_c))
+
+                print("Best Custon Path RMSE = %.5f with delay = %d\n" %
+                      (best_RMSE_c, best_delay))
 
 
 if __name__=="__main__":

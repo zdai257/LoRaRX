@@ -396,12 +396,19 @@ class EKF_Fusion():
         self.anchor = anchor
         self.anchorLst = anchorLst
         self.ismdn = ismdn
+        self.iscustom = True
 
         self.gt_path = []
         if GtDirDate is not None:
             self.gt_path = self.get_gt_path(GtDirDate)
         self.gt_x = [item[0] for item in self.gt_path]
         self.gt_y = [item[1] for item in self.gt_path]
+
+        if self.iscustom:
+            self.custom_path = self.get_custom_path()
+            self.custom_x = [item[0] for item in self.custom_path]
+            self.custom_y = [item[1] for item in self.custom_path]
+
         # Current Pose handler
         self.pred_transform_t_1 = np.array(
         [[1., 0, 0, 0],
@@ -432,8 +439,8 @@ class EKF_Fusion():
         self.ax2background = None
         self.cir_lst = []
         self.cir_dict = {0: [], 1: [], 2: [], 3: [], 4: []}
-        self.clr_lst = ['coral', 'magenta', 'purple', 'brown', 'DeepSkyBlue']  # Color Code to avoid Red/Green Blind
-        #self.clr_lst = ['coral', 'magenta', 'gold', 'darkolivegreen', 'limegreen']
+        #self.clr_lst = ['coral', 'magenta', 'purple', 'brown', 'DeepSkyBlue']  # Color Code to avoid Red/Green Blind
+        self.clr_lst = ['coral', 'magenta', 'gold', 'darkolivegreen', 'limegreen']
 
         self.fig2 = plt.figure(figsize=(8, 7))
         gs = gridspec.GridSpec(2, 1, height_ratios=[3, 1])
@@ -745,20 +752,21 @@ class EKF_Fusion():
             traj = self.path
         traj_fuse = np.asarray(self.xs)
         u, v, w = self.U[-1], self.V[-1], self.W[-1]
-
+        '''
         self.handle_scat.set_alpha(.2)
         self.handle_scat_ekf.set_alpha(.2)
         self.handle_arrw.remove()
+        '''
         # Remove Range Circle
         for anchor_idx in self.anchorLst:
             self.cir_dict[anchor_idx].remove()
-
-        self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
+        '''
+        self.handle_scat = self.ax21.scatter([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], s=mark_size, color='b', marker='o', alpha=.9, label='MilliEgo')
         self.handle_arrw = self.ax21.quiver([traj[odom_idx][0]], [traj[odom_idx][1]], [traj[odom_idx][2]], u, v, w, color='cyan', length=2., arrow_length_ratio=0.4, linewidths=3., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter([traj_fuse[-1][0, 0]], [traj_fuse[-1][1, 0]], [0.], s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
+        self.handle_scat_ekf = self.ax21.scatter([traj_fuse[-1][0, 0]], [traj_fuse[-1][1, 0]], [0.], s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MilliEgo')
         # Not Attempting to Visual EKF Updated Orientation
         #self.handle_arrw_ekf = self.ax21.quiver([self.my_kf.x[0, 0]], [self.my_kf.x[1, 0]], [self.my_kf.x[2, 0]], self.U_ekf, self.V_ekf, self.W_ekf, color='r', length=1., alpha=.7)
-
+        '''
         # Manually Equal Axis and Limit
         #self.ax21.auto_scale_xyz([-5, 15], [-2, 18], [-1, 3])  # 61Apartment view
         self.ax21.auto_scale_xyz([-2.5, 12.5], [-5, 10], [-1, 3])  # Left* search view
@@ -783,7 +791,7 @@ class EKF_Fusion():
         for anchor_count, anchor_idx in enumerate(self.anchorLst):
             self.ax22.plot(self.rssi_dict_smth[anchor_count], color=self.clr_lst[anchor_idx], alpha=.7, label='RX{}'.format(anchor_idx))
 
-        '''
+
         if self.anchor:
             self.ax22.plot(self.rssi_list, 'coral', label='RX Commander')
             self.ax22.plot(self.smoothed_rssi_list, 'green', label='RX Cmd Smoothed')
@@ -791,7 +799,7 @@ class EKF_Fusion():
             self.ax22.plot(self.rssi_list2, 'b', alpha=.5, label='RX 2')
         if self.rssi_list3:
             self.ax22.plot(self.rssi_list3, 'cyan', alpha=.5, label='RX 3')
-        '''
+
         if self.anchor:
             self.ax22.legend(loc='lower left', prop={'size': 8})
 
@@ -799,12 +807,12 @@ class EKF_Fusion():
             # restore background
             self.fig2.canvas.restore_region(self.ax1background)
             self.fig2.canvas.restore_region(self.ax2background)
-            
+            '''
             # redraw just the points
             self.ax21.draw_artist(self.handle_scat)
             self.ax21.draw_artist(self.handle_arrw)
             self.ax21.draw_artist(self.handle_scat_ekf)
-
+            '''
             # fill in the axes rectangle
             self.fig2.canvas.blit(self.ax21.bbox)
             self.fig2.canvas.blit(self.ax22.bbox)
@@ -837,12 +845,17 @@ class EKF_Fusion():
         self.ax21.set_zlim(-2, 2)
         '''
         quiv_len = np.sqrt(u**2 + v**2 + w**2)
-        self.handle_scat = self.ax21.scatter(x, y, z, s=mark_size, color='b', marker='o', alpha=.9, label='MIO')
+        '''
+        self.handle_scat = self.ax21.scatter(x, y, z, s=mark_size, color='b', marker='o', alpha=.9, label='MilliEgo')
         self.handle_arrw = self.ax21.quiver(x, y, z, u, v, w, color='b', length=2., arrow_length_ratio=0.3, linewidths=3., alpha=.7)
-        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MIO')
+        self.handle_scat_ekf = self.ax21.scatter(X, Y, Z, s=mark_size, color='r', marker='o', alpha=.9, label='LoRa-MilliEgo')
+        '''
+        # Plot CUSTOM path
+        if self.iscustom:
+            self.ax21.scatter(self.custom_x, self.custom_y, 0, s=6, alpha=1, color='g', label='IONet')
 
         # Plot GT path
-        self.ax21.scatter(self.gt_x, self.gt_y, 0, s=4, alpha=.5, color='grey', label='LiDAR')
+        self.ax21.scatter(self.gt_x, self.gt_y, 0, s=4, alpha=.5, color='grey', label='Ground-Truth')
         self.ax21.legend(loc='upper left')
 
         # Show RXs
@@ -889,7 +902,7 @@ class EKF_Fusion():
             RotEular = quat2euler(q)
 
             t0 = datetime.utcfromtimestamp(Times[i, 0] + Times[i, 1] / (10 ** 9))
-            abs_x = Trans[i, 0]  # -3 to patch ApartmentInOut3
+            abs_x = Trans[i, 0]-3  # -3 to patch ApartmentInOut3
             abs_y = Trans[i, 1]
             abs_yaw = RotEular[2]
 
@@ -897,6 +910,26 @@ class EKF_Fusion():
 
         return GTpath
 
+
+    def get_custom_path(self):
+        filePath = join('replayed_results', 'leftvicon_ionet10.csv')
+
+        df_gt = pandas.read_csv(filePath, sep=',', header=0)
+        position = df_gt.values[:, 5:7]
+        yaw = df_gt.values[:, 10]
+
+        path_length = np.size(position, 0)
+        print("Path Data Length = {}".format(path_length))
+        path = []
+
+        for i in range(100, path_length-210):
+            abs_x = position[i, 0] - position[100, 0] - 0
+            abs_y = position[i, 1] - position[100, 1] + 2
+            abs_yaw = yaw[i]
+
+            path.append([abs_x, abs_y, abs_yaw])
+
+        return path
 
 
 if __name__=="__main__":
