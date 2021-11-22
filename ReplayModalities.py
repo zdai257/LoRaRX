@@ -99,8 +99,8 @@ def main():
     # 0420RightViconLast_crossmio: '2021-04-20-14-42-41'
     # 0421RightViconLast_crossmio: '2021-04-21-14-43-47'
     # ApartmentInOut3: '2021-04-28-23-39-11'
-    GtDate = '2021-03-24-15-45-47'
-    RxIP_lst = ['94', '95', '97' ]
+    GtDate = '2021-04-28-23-39-11'
+    RxIP_lst = ['94', '95', '96' ]
     RxLst = [int(idx) - 93 for idx in RxIP_lst]
 
     ekf = EKF_OriginFusion(anchorLst=RxLst, ismdn=False, dense=True, GtDirDate=GtDate)
@@ -146,7 +146,7 @@ def main():
                 recv_idx += 1
                 #print(ekf.xs)
 
-                if recv_idx > 120:
+                if recv_idx > 100:
                     break
 
 
